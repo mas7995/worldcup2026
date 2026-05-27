@@ -1,0 +1,128 @@
+const express = require('express');
+const router = express.Router();
+const { getDb } = require('../db');
+const { updateScoresForMatch } = require('../scoring');
+const { syncMatchResults } = require('../apiSync');
+
+const ADMIN_PIN = process.env.ADMIN_PIN || '2026';
+
+function requirePin(req, res, next) {
+  const pin = req.headers['x-admin-pin'] || req.body?.pin;
+  if (pin !== ADMIN_PIN) {
+    return res.status(401).json({ error: 'Invalid PIN' });
+  }
+  next();
+}
+
+// Manually set/override match result
+router.post('/result', requirePin, (req, res) => {
+  const { matchId, result, scoreA, scoreB } = req.body;
+  if (!matchId || !result) {
+    return res.status(400).json({ error: 'matchId and result required' });
+  }
+  if (!['team_a', 'draw', 'team_b'].includes(result)) {
+    return res.status(400).json({ error: 'Invalid result' });
+  }
+
+  const db = getDb();
+  const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId);
+  if (!match) return res.status(404).json({ error: 'Match not found' });
+
+  db.prepare(`
+    UPDATE matches SET result = ?, score_a = ?, score_b = ?, status = 'finished' WHERE id = ?
+  `).run(result, scoreA ?? null, scoreB ?? null, matchId);
+
+  updateScoresForMatch(matchId);
+
+  res.json({ ok: true, matchId, result });
+});
+
+// Trigger API sync
+router.post('/sync', requirePin, async (req, res) => {
+  const result = await syncMatchResults();
+  res.json(result);
+});
+
+// Get full audit trail
+router.get('/audit', requirePin, (req, res) => {
+  const db = getDb();
+  const audit = db.prepare(`
+    SELECT pa.*, p.name as player_name, m.team_a, m.team_b, m.round, m.kickoff_time
+    FROM prediction_audit pa
+    JOIN players p ON pa.player_id = p.id
+    JOIN matches m ON pa.match_id = m.id
+    ORDER BY pa.recorded_at DESC
+    LIMIT 1000
+  `).all();
+  res.json(audit);
+});
+
+// Remove a player
+router.delete('/players/:id', requirePin, (req, res) => {
+  const db = getDb();
+  const player = db.prepare('SELECT * FROM players WHERE id = ?').get(req.params.id);
+  if (!player) return res.status(404).json({ error: 'Player not found' });
+
+  db.transaction(() => {
+    db.prepare('DELETE FROM prediction_audit WHERE player_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM reactions WHERE player_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM predictions WHERE player_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM players WHERE id = ?').run(req.params.id);
+  })();
+
+  res.json({ ok: true });
+});
+
+// Reset game (nuclear)
+router.post('/reset', requirePin, (req, res) => {
+  const { confirm } = req.body;
+  if (confirm !== 'RESET_CONFIRMED') {
+    return res.status(400).json({ error: 'Send confirm: "RESET_CONFIRMED" to proceed' });
+  }
+
+  const db = getDb();
+  db.transaction(() => {
+    db.prepare('DELETE FROM prediction_audit').run();
+    db.prepare('DELETE FROM reactions').run();
+    db.prepare('DELETE FROM predictions').run();
+    db.prepare('DELETE FROM players').run();
+    db.prepare("UPDATE matches SET status='upcoming', result=NULL, score_a=NULL, score_b=NULL").run();
+  })();
+
+  res.json({ ok: true, message: 'Game reset complete' });
+});
+
+// Update match kickoff or team names
+router.patch('/matches/:id', requirePin, (req, res) => {
+  const db = getDb();
+  const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(req.params.id);
+  if (!match) return res.status(404).json({ error: 'Match not found' });
+
+  const { team_a, team_b, team_a_code, team_b_code, kickoff_time, status } = req.body;
+  const updates = {};
+  if (team_a) updates.team_a = team_a;
+  if (team_b) updates.team_b = team_b;
+  if (team_a_code) updates.team_a_code = team_a_code;
+  if (team_b_code) updates.team_b_code = team_b_code;
+  if (kickoff_time) updates.kickoff_time = kickoff_time;
+  if (status) updates.status = status;
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
+  const setClauses = Object.keys(updates).map(k => `${k} = ?`).join(', ');
+  db.prepare(`UPDATE matches SET ${setClauses} WHERE id = ?`).run(...Object.values(updates), req.params.id);
+
+  const updated = db.prepare('SELECT * FROM matches WHERE id = ?').get(req.params.id);
+  res.json(updated);
+});
+
+// Get all matches for admin view
+router.get('/matches', requirePin, (req, res) => {
+  const db = getDb();
+  const matches = db.prepare('SELECT * FROM matches ORDER BY kickoff_time ASC').all();
+  res.json(matches);
+});
+
+module.exports = router;
