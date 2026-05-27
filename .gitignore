@@ -3,7 +3,11 @@ server/node_modules/
 client/node_modules/
 client/dist/
 server/worldcup.db
+server/worldcup.db-shm
+server/worldcup.db-wal
 *.db
+*.db-shm
+*.db-wal
 .env
 .env.local
 dist/
