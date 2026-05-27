@@ -48,7 +48,6 @@ export default function PlayerSelect({ onDone }) {
         <div className="text-center space-y-2">
           <div className="text-6xl">⚽</div>
           <h1 className="text-3xl font-black text-white">
-            Sierra Family<br />
             <span className="bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">
               World Cup 2026
             </span>
