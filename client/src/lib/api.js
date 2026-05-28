@@ -52,6 +52,8 @@ export const api = {
       }),
     getMatches: (pin) =>
       request('/admin/matches', { headers: { 'x-admin-pin': pin } }),
+    getApiUsage: (pin) =>
+      request('/admin/api-usage', { headers: { 'x-admin-pin': pin } }),
     updateMatch: (pin, id, data) =>
       request(`/admin/matches/${id}`, {
         method: 'PATCH',

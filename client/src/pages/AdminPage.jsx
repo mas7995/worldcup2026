@@ -13,6 +13,7 @@ export default function AdminPage() {
   const [error, setError] = useState('');
   const [editMatch, setEditMatch] = useState(null);
   const [resultForm, setResultForm] = useState({ result: '', scoreA: '', scoreB: '' });
+  const [apiUsage, setApiUsage] = useState(null);
 
   async function handlePinSubmit(e) {
     e.preventDefault();
@@ -27,14 +28,16 @@ export default function AdminPage() {
 
   async function loadAll() {
     try {
-      const [m, a, p] = await Promise.all([
+      const [m, a, p, u] = await Promise.all([
         api.admin.getMatches(pin),
         api.admin.getAudit(pin),
         api.getPlayers(),
+        api.admin.getApiUsage(pin),
       ]);
       setMatches(m);
       setAudit(a);
       setPlayers(p);
+      setApiUsage(u);
     } catch (e) {
       setError(e.message);
     }
@@ -115,6 +118,7 @@ export default function AdminPage() {
     { id: 'results', label: '📝 Results' },
     { id: 'players', label: '👥 Players' },
     { id: 'audit', label: '📋 Audit' },
+    { id: 'api', label: '📡 API' },
   ];
 
   return (
@@ -225,6 +229,52 @@ export default function AdminPage() {
               </span>
             </div>
           ))}
+        </div>
+      )}
+
+      {tab === 'api' && (
+        <div className="card space-y-4">
+          <h3 className="text-sm font-bold text-white/60 uppercase tracking-wider">API Budget</h3>
+          {apiUsage ? (
+            <>
+              <div className="flex gap-3">
+                <div className="flex-1 bg-white/5 rounded-xl p-3 text-center">
+                  <div className="text-2xl font-black text-white">{apiUsage.total}</div>
+                  <div className="text-xs text-white/40">used</div>
+                </div>
+                <div className="flex-1 bg-white/5 rounded-xl p-3 text-center">
+                  <div className={`text-2xl font-black ${apiUsage.remaining < 100 ? 'text-red-400' : apiUsage.remaining < 300 ? 'text-yellow-400' : 'text-green-400'}`}>
+                    {apiUsage.remaining}
+                  </div>
+                  <div className="text-xs text-white/40">remaining</div>
+                </div>
+                <div className="flex-1 bg-white/5 rounded-xl p-3 text-center">
+                  <div className="text-2xl font-black text-white/60">{apiUsage.budget}</div>
+                  <div className="text-xs text-white/40">budget</div>
+                </div>
+              </div>
+              <div className="w-full bg-white/10 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all ${apiUsage.remaining < 100 ? 'bg-red-400' : apiUsage.remaining < 300 ? 'bg-yellow-400' : 'bg-green-400'}`}
+                  style={{ width: `${Math.min(100, (apiUsage.total / apiUsage.budget) * 100)}%` }}
+                />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-xs font-bold text-white/40 uppercase">Recent calls</h4>
+                {apiUsage.recent.map((r, i) => (
+                  <div key={i} className="text-xs flex gap-2 py-0.5 border-b border-white/5">
+                    <span className="text-white/40 w-28 flex-shrink-0">
+                      {new Date(r.called_at + 'Z').toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    </span>
+                    <span className="text-white/70 flex-1">{r.endpoint}</span>
+                    <span className={r.result === 'ok' ? 'text-green-400' : 'text-red-400'}>{r.result}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="text-white/40 text-sm text-center py-4">Loading...</div>
+          )}
         </div>
       )}
     </div>

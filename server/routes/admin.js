@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getDb } = require('../db');
 const { updateScoresForMatch } = require('../scoring');
-const { syncMatchResults } = require('../apiSync');
+const { syncMatchResults, syncByDate, getRequestCount } = require('../apiSync');
 
 const ADMIN_PIN = process.env.ADMIN_PIN || '2026';
 
@@ -55,6 +55,16 @@ router.get('/audit', requirePin, (req, res) => {
     LIMIT 1000
   `).all();
   res.json(audit);
+});
+
+// API usage stats
+router.get('/api-usage', requirePin, (req, res) => {
+  const db = getDb();
+  const total = getRequestCount();
+  const recent = db.prepare(
+    'SELECT endpoint, called_at, result FROM api_log ORDER BY called_at DESC LIMIT 50'
+  ).all();
+  res.json({ total, budget: 1500, remaining: 1500 - total, recent });
 });
 
 // Remove a player

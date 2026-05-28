@@ -64,6 +64,13 @@ function initSchema(db) {
       emoji TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS api_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      endpoint TEXT NOT NULL,
+      called_at TEXT NOT NULL DEFAULT (datetime('now')),
+      result TEXT
+    );
   `);
 }
 
