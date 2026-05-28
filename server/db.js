@@ -1,9 +1,13 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 
 // DB_PATH can be set to a persistent volume path in cloud deployments
 // e.g. DB_PATH=/data/worldcup.db on Railway/Fly.io
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'worldcup.db');
+
+// ensure parent directory exists (required when pointing at a volume mount like /data)
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
 let _db;
 function getDb() {
