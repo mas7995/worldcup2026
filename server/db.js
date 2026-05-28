@@ -1,7 +1,9 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, 'worldcup.db');
+// DB_PATH can be set to a persistent volume path in cloud deployments
+// e.g. DB_PATH=/data/worldcup.db on Railway/Fly.io
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'worldcup.db');
 
 let _db;
 function getDb() {
@@ -10,6 +12,7 @@ function getDb() {
     _db.pragma('journal_mode = WAL');
     _db.pragma('foreign_keys = ON');
     initSchema(_db);
+  migrate(_db);
   }
   return _db;
 }
@@ -19,6 +22,7 @@ function initSchema(db) {
     CREATE TABLE IF NOT EXISTS players (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
+      pin TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -72,6 +76,19 @@ function initSchema(db) {
       result TEXT
     );
   `);
+}
+
+// Safe migrations for existing databases
+function migrate(db) {
+  // Add pin column if upgrading from a version that didn't have it
+  try { db.exec('ALTER TABLE players ADD COLUMN pin TEXT'); } catch {}
+  // Add api_log if upgrading from before request tracking
+  try { db.exec(`CREATE TABLE IF NOT EXISTS api_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    endpoint TEXT NOT NULL,
+    called_at TEXT NOT NULL DEFAULT (datetime('now')),
+    result TEXT
+  )`); } catch {}
 }
 
 module.exports = { getDb };

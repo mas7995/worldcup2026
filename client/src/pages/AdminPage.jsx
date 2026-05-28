@@ -202,15 +202,14 @@ export default function AdminPage() {
       {tab === 'players' && (
         <div className="card space-y-2">
           {players.map(p => (
-            <div key={p.id} className="flex items-center justify-between p-2 bg-white/5 rounded-xl">
-              <span className="font-bold">{p.name}</span>
-              <button
-                onClick={() => handleRemovePlayer(p.id, p.name)}
-                className="text-red-400 hover:text-red-300 text-xs cursor-pointer"
-              >
-                Remove
-              </button>
-            </div>
+            <PlayerRow
+              key={p.id}
+              player={p}
+              adminPin={pin}
+              onRemove={() => handleRemovePlayer(p.id, p.name)}
+              onMsg={setMsg}
+              onError={setError}
+            />
           ))}
           {players.length === 0 && <div className="text-center text-white/40 py-4">No players</div>}
         </div>
@@ -276,6 +275,60 @@ export default function AdminPage() {
             <div className="text-white/40 text-sm text-center py-4">Loading...</div>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function PlayerRow({ player, adminPin, onRemove, onMsg, onError }) {
+  const [resetting, setResetting] = useState(false);
+  const [newPin, setNewPin] = useState('');
+
+  async function handleResetPin(e) {
+    e.preventDefault();
+    if (!/^\d{4}$/.test(newPin)) return;
+    try {
+      await api.admin.resetPlayerPin(adminPin, player.id, newPin);
+      onMsg(`PIN reset for ${player.name}`);
+      setNewPin('');
+      setResetting(false);
+    } catch (e) {
+      onError(e.message);
+    }
+  }
+
+  return (
+    <div className="bg-white/5 rounded-xl p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="font-bold">{player.name}</span>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setResetting(r => !r)}
+            className="text-xs text-yellow-400 hover:text-yellow-300 cursor-pointer"
+          >
+            Reset PIN
+          </button>
+          <button onClick={onRemove} className="text-xs text-red-400 hover:text-red-300 cursor-pointer">
+            Remove
+          </button>
+        </div>
+      </div>
+      {resetting && (
+        <form onSubmit={handleResetPin} className="flex gap-2">
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={4}
+            value={newPin}
+            onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))}
+            placeholder="New PIN"
+            autoFocus
+            className="flex-1 bg-white/10 border border-white/20 rounded-xl px-3 py-1.5 text-white text-sm outline-none focus:border-yellow-400"
+          />
+          <button type="submit" disabled={newPin.length !== 4} className="btn-primary text-xs px-3 py-1.5">
+            Set
+          </button>
+        </form>
       )}
     </div>
   );

@@ -13,7 +13,10 @@ async function request(path, options = {}) {
 
 export const api = {
   getPlayers: () => request('/players'),
-  createPlayer: (name) => request('/players', { method: 'POST', body: { name } }),
+  createPlayer: (name, pin) => request('/players', { method: 'POST', body: { name, pin } }),
+  verifyPin: (playerId, pin) => request('/players/verify', { method: 'POST', body: { playerId, pin } }),
+  setPin: (playerId, currentPin, newPin) =>
+    request(`/players/${playerId}/pin`, { method: 'PATCH', body: { currentPin, newPin } }),
 
   getMatches: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
@@ -54,6 +57,12 @@ export const api = {
       request('/admin/matches', { headers: { 'x-admin-pin': pin } }),
     getApiUsage: (pin) =>
       request('/admin/api-usage', { headers: { 'x-admin-pin': pin } }),
+    resetPlayerPin: (adminPin, playerId, newPin) =>
+      request(`/admin/players/${playerId}/pin`, {
+        method: 'PATCH',
+        headers: { 'x-admin-pin': adminPin },
+        body: { newPin },
+      }),
     updateMatch: (pin, id, data) =>
       request(`/admin/matches/${id}`, {
         method: 'PATCH',

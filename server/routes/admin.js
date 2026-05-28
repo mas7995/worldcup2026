@@ -67,6 +67,19 @@ router.get('/api-usage', requirePin, (req, res) => {
   res.json({ total, budget: 1500, remaining: 1500 - total, recent });
 });
 
+// Reset a player's PIN (admin override)
+router.patch('/players/:id/pin', requirePin, (req, res) => {
+  const { newPin } = req.body;
+  if (!newPin || !/^\d{4}$/.test(String(newPin))) {
+    return res.status(400).json({ error: 'New PIN must be exactly 4 digits' });
+  }
+  const db = getDb();
+  const player = db.prepare('SELECT * FROM players WHERE id = ?').get(req.params.id);
+  if (!player) return res.status(404).json({ error: 'Player not found' });
+  db.prepare('UPDATE players SET pin = ? WHERE id = ?').run(String(newPin), req.params.id);
+  res.json({ ok: true });
+});
+
 // Remove a player
 router.delete('/players/:id', requirePin, (req, res) => {
   const db = getDb();
