@@ -23,6 +23,7 @@ export const api = {
     return request(`/matches${qs ? '?' + qs : ''}`);
   },
   getMatch: (id) => request(`/matches/${id}`),
+  getBracket: () => request('/matches/bracket'),
 
   getPredictions: (playerId) => request(`/predictions/${playerId}`),
   savePrediction: (playerId, matchId, prediction) =>

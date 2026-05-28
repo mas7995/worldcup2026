@@ -5,6 +5,7 @@ import NavBar from './components/NavBar';
 import MatchesPage from './pages/MatchesPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import MyPicksPage from './pages/MyPicksPage';
+import BracketPage from './pages/BracketPage';
 import AdminPage from './pages/AdminPage';
 
 function AppInner() {
@@ -26,6 +27,7 @@ function AppInner() {
         {page === 'matches' && <MatchesPage />}
         {page === 'leaderboard' && <LeaderboardPage />}
         {page === 'mypicks' && <MyPicksPage />}
+        {page === 'bracket' && <BracketPage />}
       </div>
     </div>
   );
