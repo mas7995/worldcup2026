@@ -2,16 +2,26 @@
 export function flagEmoji(code) {
   if (!code || code === 'TBD') return '🏴';
   const map = {
-    ARG: '🇦🇷', AUS: '🇦🇺', BEL: '🇧🇪', BRA: '🇧🇷', CAN: '🇨🇦',
-    CHI: '🇨🇱', COL: '🇨🇴', CRC: '🇨🇷', CRO: '🇭🇷', ECU: '🇪🇨',
-    EGY: '🇪🇬', ENG: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', ESP: '🇪🇸', FRA: '🇫🇷', GER: '🇩🇪',
-    GHA: '🇬🇭', HON: '🇭🇳', IRN: '🇮🇷', ITA: '🇮🇹', JAM: '🇯🇲',
-    JPN: '🇯🇵', KOR: '🇰🇷', KSA: '🇸🇦', MAR: '🇲🇦', MEX: '🇲🇽',
-    NED: '🇳🇱', NGA: '🇳🇬', NZL: '🇳🇿', PAN: '🇵🇦', PAR: '🇵🇾',
-    PER: '🇵🇪', POL: '🇵🇱', POR: '🇵🇹', QAT: '🇶🇦', RSA: '🇿🇦',
-    SEN: '🇸🇳', SRB: '🇷🇸', SUI: '🇨🇭', SVN: '🇸🇮', TUR: '🇹🇷',
-    UKR: '🇺🇦', URU: '🇺🇾', USA: '🇺🇸', VEN: '🇻🇪', ALG: '🇩🇿',
-    CMR: '🇨🇲', CUB: '🇨🇺', GUA: '🇬🇹',
+    // Americas
+    ARG: '🇦🇷', BOL: '🇧🇴', BRA: '🇧🇷', CAN: '🇨🇦', CHI: '🇨🇱',
+    COL: '🇨🇴', CRC: '🇨🇷', CUB: '🇨🇺', CUW: '🇨🇼', ECU: '🇪🇨',
+    GUA: '🇬🇹', HAI: '🇭🇹', HON: '🇭🇳', JAM: '🇯🇲', MEX: '🇲🇽',
+    PAN: '🇵🇦', PAR: '🇵🇾', PER: '🇵🇪', TRI: '🇹🇹', URU: '🇺🇾',
+    USA: '🇺🇸', VEN: '🇻🇪',
+    // Europe
+    AUT: '🇦🇹', BEL: '🇧🇪', CRO: '🇭🇷', CZE: '🇨🇿', DEN: '🇩🇰',
+    ENG: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', ESP: '🇪🇸', FRA: '🇫🇷', GER: '🇩🇪', HUN: '🇭🇺',
+    ITA: '🇮🇹', NED: '🇳🇱', NOR: '🇳🇴', POL: '🇵🇱', POR: '🇵🇹',
+    ROU: '🇷🇴', SCO: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', SRB: '🇷🇸', SVK: '🇸🇰', SVN: '🇸🇮',
+    SUI: '🇨🇭', SWE: '🇸🇪', TUR: '🇹🇷', UKR: '🇺🇦', WAL: '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+    // Africa
+    ALG: '🇩🇿', CMR: '🇨🇲', CPV: '🇨🇻', CIV: '🇨🇮', EGY: '🇪🇬',
+    GHA: '🇬🇭', MAR: '🇲🇦', NGA: '🇳🇬', RSA: '🇿🇦', SEN: '🇸🇳',
+    TUN: '🇹🇳',
+    // Asia / Pacific
+    AUS: '🇦🇺', CHN: '🇨🇳', IDN: '🇮🇩', IRN: '🇮🇷', IRQ: '🇮🇶',
+    JPN: '🇯🇵', JOR: '🇯🇴', KOR: '🇰🇷', KSA: '🇸🇦', NZL: '🇳🇿',
+    QAT: '🇶🇦', UZB: '🇺🇿',
   };
   return map[code] || '🏴';
 }
