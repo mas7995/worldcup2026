@@ -1,9 +1,12 @@
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const cron = require('node-cron');
+const { getDb } = require('./db');
 const { syncMatchResults, syncByDate, getRequestCount } = require('./apiSync');
-require('./db'); // init schema on startup
+const { reseed } = require('./reseed');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -11,7 +14,6 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// API routes
 app.use('/api/players', require('./routes/players'));
 app.use('/api/matches', require('./routes/matches'));
 app.use('/api/predictions', require('./routes/predictions'));
@@ -19,7 +21,6 @@ app.use('/api/leaderboard', require('./routes/leaderboard'));
 app.use('/api/reactions', require('./routes/reactions'));
 app.use('/api/admin', require('./routes/admin'));
 
-// Serve frontend in production
 const distPath = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(distPath));
 app.get('*', (req, res) => {
@@ -27,13 +28,9 @@ app.get('*', (req, res) => {
 });
 
 // ─── CRON: Live score sync ───────────────────────────────────────────────────
-// Runs every 15 minutes but only calls the API when a match is actively
-// in play: kicked off 0–115 minutes ago (90 min match + 25 min buffer).
-// ~8 calls per match × 104 matches = ~830 total. Well within the 1500 budget.
+// Every 15 min, only fires when a match is actively in play (0–115 min after kickoff)
 cron.schedule('*/15 * * * *', async () => {
-  const { getDb } = require('./db');
   const db = getDb();
-
   const activeNow = db.prepare(`
     SELECT COUNT(*) as cnt FROM matches
     WHERE status = 'live'
@@ -45,34 +42,52 @@ cron.schedule('*/15 * * * *', async () => {
   `).get();
 
   if (activeNow.cnt > 0) {
-    console.log(`[cron] ${activeNow.cnt} match(es) in play — syncing live scores...`);
+    console.log(`[cron] ${activeNow.cnt} match(es) in play — syncing...`);
     const result = await syncMatchResults();
-    console.log(`[cron] Live sync done: ${JSON.stringify(result)}`);
+    console.log(`[cron] Sync done: ${JSON.stringify(result)}`);
   }
 });
 
 // ─── CRON: Daily catch-up ────────────────────────────────────────────────────
-// Runs once per day at 4 AM CT (= 9 AM UTC). Fetches yesterday's fixtures
-// to catch any results the live sync may have missed (e.g. server was down).
-// Cost: 1 call/day × ~38 match days = ~38 total.
+// 4 AM CT (9 AM UTC) — picks up any results missed while server was idle
 cron.schedule('0 9 * * *', async () => {
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const dateStr = yesterday.toISOString().slice(0, 10);
-
-  console.log(`[cron] Daily catch-up for ${dateStr}...`);
-  const result = await syncByDate(dateStr);
-  console.log(`[cron] Daily catch-up done: ${JSON.stringify(result)}`);
+  const result = await syncByDate(yesterday.toISOString().slice(0, 10));
+  console.log(`[cron] Daily catch-up: ${JSON.stringify(result)}`);
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`API requests used so far: ${getRequestCount()}`);
+// ─── STARTUP ─────────────────────────────────────────────────────────────────
+async function start() {
+  const db = getDb();
+  const matchCount = db.prepare('SELECT COUNT(*) as cnt FROM matches').get().cnt;
 
-  // Auto-seed on startup (no-op if already seeded)
-  try {
-    require('./seed');
-  } catch (err) {
-    console.error('Seed error:', err.message);
+  if (matchCount === 0) {
+    if (process.env.WORLDCUP_API_KEY) {
+      console.log('[startup] Empty database — fetching real schedule from worldcupapi.com...');
+      try {
+        await reseed();
+      } catch (err) {
+        console.error('[startup] Reseed failed:', err.message);
+        console.warn('[startup] Falling back to placeholder schedule.');
+        require('./seed');
+      }
+    } else {
+      console.warn('[startup] No WORLDCUP_API_KEY set — loaded placeholder schedule.');
+      console.warn('[startup] Add WORLDCUP_API_KEY to server/.env and delete the DB to get real fixtures.');
+      require('./seed');
+    }
+  } else {
+    console.log(`[startup] Database has ${matchCount} matches — skipping seed.`);
   }
+
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`API requests used: ${getRequestCount()}`);
+  });
+}
+
+start().catch(err => {
+  console.error('Fatal startup error:', err);
+  process.exit(1);
 });
