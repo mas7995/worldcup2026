@@ -2,8 +2,6 @@ const express = require('express');
 const router = express.Router();
 const { getDb } = require('../db');
 
-const MAX_PLAYERS = 8;
-
 // Never return pin in list responses
 router.get('/', (req, res) => {
   const db = getDb();
@@ -27,11 +25,6 @@ router.post('/', (req, res) => {
   }
 
   const db = getDb();
-  const count = db.prepare('SELECT COUNT(*) as cnt FROM players').get();
-  if (count.cnt >= MAX_PLAYERS) {
-    return res.status(400).json({ error: 'Game is full (max 8 players)' });
-  }
-
   const existing = db.prepare('SELECT id FROM players WHERE LOWER(name) = LOWER(?)').get(trimmed);
   if (existing) {
     return res.status(400).json({ error: 'Name already taken' });
