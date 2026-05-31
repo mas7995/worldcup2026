@@ -79,7 +79,7 @@ export default function PlayerSelect({ onDone }) {
     }
   }
 
-  const isFull = playerCount >= 8;
+  const isFull = false;
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -100,7 +100,7 @@ export default function PlayerSelect({ onDone }) {
         {playerCount > 0 && (
           <div className="card text-center">
             <div className="text-3xl font-black text-yellow-400">${playerCount * 50}</div>
-            <div className="text-sm text-white/60">in the pot · {playerCount}/8 players</div>
+            <div className="text-sm text-white/60">in the pot · {playerCount} players</div>
           </div>
         )}
 
