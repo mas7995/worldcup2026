@@ -65,6 +65,18 @@ export const api = {
         headers: { 'x-admin-pin': adminPin },
         body: { newPin },
       }),
+    createPlayer: (adminPin, name, pin) =>
+      request('/admin/players', {
+        method: 'POST',
+        headers: { 'x-admin-pin': adminPin },
+        body: { name, pin },
+      }),
+    setPrediction: (adminPin, playerId, matchId, prediction) =>
+      request('/admin/predictions', {
+        method: 'POST',
+        headers: { 'x-admin-pin': adminPin },
+        body: { playerId, matchId, prediction },
+      }),
     updateMatch: (pin, id, data) =>
       request(`/admin/matches/${id}`, {
         method: 'PATCH',

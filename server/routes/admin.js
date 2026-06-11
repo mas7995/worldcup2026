@@ -67,7 +67,53 @@ router.get('/api-usage', requirePin, (req, res) => {
   res.json({ total, budget: 1500, remaining: 1500 - total, recent });
 });
 
-// Reset a player's PIN (admin override)
+// Create a player (admin bypass — no cap, no self-registration flow)
+router.post('/players', requirePin, (req, res) => {
+  const { name, pin: playerPin } = req.body;
+  if (!name || !String(name).trim()) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+  const trimmed = String(name).trim();
+  if (!/^\d{4}$/.test(String(playerPin || ''))) {
+    return res.status(400).json({ error: 'PIN must be exactly 4 digits' });
+  }
+  const db = getDb();
+  const existing = db.prepare('SELECT id FROM players WHERE LOWER(name) = LOWER(?)').get(trimmed);
+  if (existing) return res.status(400).json({ error: 'Name already taken' });
+  const result = db.prepare('INSERT INTO players (name, pin) VALUES (?, ?)').run(trimmed, String(playerPin));
+  const player = db.prepare('SELECT id, name, created_at FROM players WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json(player);
+});
+
+// Set a prediction on behalf of a player (admin override — ignores kickoff lock)
+router.post('/predictions', requirePin, (req, res) => {
+  const { playerId, matchId, prediction } = req.body;
+  if (!playerId || !matchId || !prediction) {
+    return res.status(400).json({ error: 'playerId, matchId, and prediction are required' });
+  }
+  if (!['team_a', 'draw', 'team_b'].includes(prediction)) {
+    return res.status(400).json({ error: 'Invalid prediction' });
+  }
+  const db = getDb();
+  if (!db.prepare('SELECT id FROM players WHERE id = ?').get(playerId)) {
+    return res.status(404).json({ error: 'Player not found' });
+  }
+  if (!db.prepare('SELECT id FROM matches WHERE id = ?').get(matchId)) {
+    return res.status(404).json({ error: 'Match not found' });
+  }
+  const now = new Date().toISOString();
+  db.transaction(() => {
+    const existing = db.prepare('SELECT id FROM predictions WHERE player_id = ? AND match_id = ?').get(playerId, matchId);
+    if (existing) {
+      db.prepare('UPDATE predictions SET prediction = ?, updated_at = ?, is_correct = NULL WHERE id = ?').run(prediction, now, existing.id);
+    } else {
+      db.prepare('INSERT INTO predictions (player_id, match_id, prediction, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(playerId, matchId, prediction, now, now);
+    }
+    db.prepare('INSERT INTO prediction_audit (player_id, match_id, prediction, recorded_at) VALUES (?, ?, ?, ?)').run(playerId, matchId, prediction, now);
+  })();
+  res.json({ ok: true });
+});
+
 router.patch('/players/:id/pin', requirePin, (req, res) => {
   const { newPin } = req.body;
   if (!newPin || !/^\d{4}$/.test(String(newPin))) {

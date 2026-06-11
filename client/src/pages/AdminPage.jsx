@@ -200,18 +200,23 @@ export default function AdminPage() {
       )}
 
       {tab === 'players' && (
-        <div className="card space-y-2">
-          {players.map(p => (
-            <PlayerRow
-              key={p.id}
-              player={p}
-              adminPin={pin}
-              onRemove={() => handleRemovePlayer(p.id, p.name)}
-              onMsg={setMsg}
-              onError={setError}
-            />
-          ))}
-          {players.length === 0 && <div className="text-center text-white/40 py-4">No players</div>}
+        <div className="space-y-2">
+          <AddPlayerForm adminPin={pin} onDone={() => { setMsg('Player added!'); loadAll(); }} onError={setError} />
+          <div className="card space-y-2">
+            {players.map(p => (
+              <PlayerRow
+                key={p.id}
+                player={p}
+                adminPin={pin}
+                matches={matches}
+                onRemove={() => handleRemovePlayer(p.id, p.name)}
+                onMsg={setMsg}
+                onError={setError}
+                onPickDone={loadAll}
+              />
+            ))}
+            {players.length === 0 && <div className="text-center text-white/40 py-4">No players yet</div>}
+          </div>
         </div>
       )}
 
@@ -280,8 +285,10 @@ export default function AdminPage() {
   );
 }
 
-function PlayerRow({ player, adminPin, onRemove, onMsg, onError }) {
+function PlayerRow({ player, adminPin, matches, onRemove, onMsg, onError, onPickDone }) {
   const [resetting, setResetting] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [playerPreds, setPlayerPreds] = useState({});
   const [newPin, setNewPin] = useState('');
 
   async function handleResetPin(e) {
@@ -297,11 +304,44 @@ function PlayerRow({ player, adminPin, onRemove, onMsg, onError }) {
     }
   }
 
+  async function openPicking() {
+    if (picking) { setPicking(false); return; }
+    try {
+      const preds = await api.getPredictions(player.id);
+      const map = {};
+      for (const p of preds) map[p.match_id] = p.prediction;
+      setPlayerPreds(map);
+      setPicking(true);
+    } catch (e) {
+      onError(e.message);
+    }
+  }
+
+  async function handlePick(matchId, prediction) {
+    try {
+      await api.admin.setPrediction(adminPin, player.id, matchId, prediction);
+      setPlayerPreds(prev => ({ ...prev, [matchId]: prediction }));
+      onPickDone();
+    } catch (e) {
+      onError(e.message);
+    }
+  }
+
+  const pickableMatches = matches
+    .filter(m => m.status === 'upcoming' || m.status === 'live')
+    .sort((a, b) => new Date(a.kickoff_time) - new Date(b.kickoff_time));
+
   return (
     <div className="bg-white/5 rounded-xl p-3 space-y-2">
       <div className="flex items-center justify-between">
         <span className="font-bold">{player.name}</span>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
+          <button
+            onClick={openPicking}
+            className={`text-xs cursor-pointer ${picking ? 'text-purple-300' : 'text-purple-400 hover:text-purple-300'}`}
+          >
+            {picking ? 'Done Picking' : 'Pick For'}
+          </button>
           <button
             onClick={() => setResetting(r => !r)}
             className="text-xs text-yellow-400 hover:text-yellow-300 cursor-pointer"
@@ -313,6 +353,43 @@ function PlayerRow({ player, adminPin, onRemove, onMsg, onError }) {
           </button>
         </div>
       </div>
+
+      {picking && (
+        <div className="space-y-2 pt-1">
+          {pickableMatches.length === 0 && (
+            <p className="text-xs text-white/40 text-center py-2">No upcoming matches to pick.</p>
+          )}
+          {pickableMatches.map(m => {
+            const cur = playerPreds[m.id];
+            return (
+              <div key={m.id} className="bg-white/5 rounded-xl p-2 space-y-1.5">
+                <div className="text-xs text-white/60">{m.team_a} vs {m.team_b} · {toCT(m.kickoff_time)} CT</div>
+                <div className="flex gap-1">
+                  {[
+                    { val: 'team_a', label: m.team_a, color: 'blue' },
+                    { val: 'draw',   label: 'Draw',   color: 'yellow' },
+                    { val: 'team_b', label: m.team_b, color: 'red' },
+                  ].map(({ val, label, color }) => (
+                    <button
+                      key={val}
+                      onClick={() => handlePick(m.id, val)}
+                      className={`flex-1 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer
+                        ${cur === val
+                          ? color === 'blue'   ? 'border-blue-400 bg-blue-500/30 text-blue-200'
+                          : color === 'yellow' ? 'border-yellow-400 bg-yellow-500/30 text-yellow-200'
+                          :                      'border-red-400 bg-red-500/30 text-red-200'
+                          : 'border-white/20 bg-white/5 text-white/60 hover:text-white'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {resetting && (
         <form onSubmit={handleResetPin} className="flex gap-2">
           <input
@@ -330,6 +407,82 @@ function PlayerRow({ player, adminPin, onRemove, onMsg, onError }) {
           </button>
         </form>
       )}
+    </div>
+  );
+}
+
+function AddPlayerForm({ adminPin, onDone, onError }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [pin, setPin] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!name.trim() || pin.length !== 4) return;
+    setSaving(true);
+    try {
+      await api.admin.createPlayer(adminPin, name.trim(), pin);
+      setName('');
+      setPin('');
+      setOpen(false);
+      onDone();
+    } catch (err) {
+      onError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full card text-center text-white/60 hover:text-white hover:bg-white/15 transition-all cursor-pointer border-dashed text-sm py-3"
+      >
+        + Add Player
+      </button>
+    );
+  }
+
+  return (
+    <div className="card space-y-3">
+      <h3 className="text-sm font-bold text-white/80">Add Player</h3>
+      <form onSubmit={handleSubmit} className="space-y-2">
+        <input
+          type="text"
+          placeholder="Name"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          autoFocus
+          className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-purple-400"
+        />
+        <div className="flex gap-2">
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={4}
+            placeholder="4-digit PIN"
+            value={pin}
+            onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+            className="flex-1 bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-purple-400"
+          />
+          <button
+            type="submit"
+            disabled={!name.trim() || pin.length !== 4 || saving}
+            className="btn-primary text-sm px-4"
+          >
+            {saving ? '…' : 'Add'}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setOpen(false); setName(''); setPin(''); }}
+            className="btn-secondary text-sm px-3"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
