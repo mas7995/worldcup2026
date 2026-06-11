@@ -26,7 +26,11 @@ export function flagEmoji(code) {
   return map[code] || '🏴';
 }
 
-// Format UTC ISO to Central Time display
+export function toCTDateKey(isoString) {
+  // Returns "YYYY-MM-DD" in CT — used for grouping matches by day
+  return new Date(isoString).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+}
+
 export function toCT(isoString) {
   return new Date(isoString).toLocaleString('en-US', {
     timeZone: 'America/Chicago',
