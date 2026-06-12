@@ -327,8 +327,7 @@ function PlayerRow({ player, adminPin, matches, onRemove, onMsg, onError, onPick
     }
   }
 
-  const pickableMatches = matches
-    .filter(m => m.status === 'upcoming' || m.status === 'live')
+  const pickableMatches = [...matches]
     .sort((a, b) => new Date(a.kickoff_time) - new Date(b.kickoff_time));
 
   return (
@@ -362,8 +361,12 @@ function PlayerRow({ player, adminPin, matches, onRemove, onMsg, onError, onPick
           {pickableMatches.map(m => {
             const cur = playerPreds[m.id];
             return (
-              <div key={m.id} className="bg-white/5 rounded-xl p-2 space-y-1.5">
-                <div className="text-xs text-white/60">{m.team_a} vs {m.team_b} · {toCT(m.kickoff_time)} CT</div>
+              <div key={m.id} className={`rounded-xl p-2 space-y-1.5 ${m.status === 'finished' ? 'bg-white/3 opacity-60' : 'bg-white/5'}`}>
+                <div className="text-xs text-white/60 flex items-center gap-1.5">
+                  {m.status === 'live' && <span className="text-green-400 font-bold animate-pulse">LIVE</span>}
+                  {m.status === 'finished' && <span className="text-white/30">FT</span>}
+                  {m.team_a} vs {m.team_b} · {toCT(m.kickoff_time)} CT
+                </div>
                 <div className="flex gap-1">
                   {[
                     { val: 'team_a', label: m.team_a, color: 'blue' },
