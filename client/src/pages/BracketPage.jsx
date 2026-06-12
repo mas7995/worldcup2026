@@ -11,7 +11,12 @@ export default function BracketPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.getBracket().then(setData).catch(console.error).finally(() => setLoading(false));
+    function load() {
+      api.getBracket().then(setData).catch(console.error).finally(() => setLoading(false));
+    }
+    load();
+    const interval = setInterval(load, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
