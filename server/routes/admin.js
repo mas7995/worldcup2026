@@ -111,6 +111,11 @@ router.post('/predictions', requirePin, (req, res) => {
     }
     db.prepare('INSERT INTO prediction_audit (player_id, match_id, prediction, recorded_at) VALUES (?, ?, ?, ?)').run(playerId, matchId, prediction, now);
   })();
+  // If match is already finished, score this prediction immediately
+  const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId);
+  if (match.status === 'finished' && match.result) {
+    updateScoresForMatch(matchId);
+  }
   res.json({ ok: true });
 });
 
