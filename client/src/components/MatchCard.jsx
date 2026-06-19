@@ -7,7 +7,21 @@ import ReactionBar from './ReactionBar';
 
 const EMOJIS = ['🎉', '😭', '🤡', '🔥', '😤', '🏆', '💀', '🤣'];
 
-export default function MatchCard({ match, prediction, onPredictionChange }) {
+function RecordBadge({ record }) {
+  const { w, d, l } = record;
+  if (w === 0 && d === 0 && l === 0) return null;
+  return (
+    <div className="mt-1 text-[11px] text-white/40 font-semibold tracking-wide">
+      <span className="text-green-400/80">{w}W</span>
+      {' · '}
+      <span className="text-yellow-400/70">{d}D</span>
+      {' · '}
+      <span className="text-red-400/70">{l}L</span>
+    </div>
+  );
+}
+
+export default function MatchCard({ match, prediction, onPredictionChange, teamRecords }) {
   const { player } = usePlayer();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -62,6 +76,9 @@ export default function MatchCard({ match, prediction, onPredictionChange }) {
         <div className="flex-1 text-center">
           <div className="text-2xl mb-1">{flagEmoji(match.team_a_code)}</div>
           <div className="font-bold text-sm leading-tight">{match.team_a}</div>
+          {!isFinished && teamRecords?.[match.team_a] && (
+            <RecordBadge record={teamRecords[match.team_a]} />
+          )}
           {isFinished && match.score_a !== null && (
             <div className={`text-2xl font-black mt-1 ${match.result === 'team_a' ? 'text-green-400' : 'text-white/60'}`}>
               {match.score_a}
@@ -86,6 +103,9 @@ export default function MatchCard({ match, prediction, onPredictionChange }) {
         <div className="flex-1 text-center">
           <div className="text-2xl mb-1">{flagEmoji(match.team_b_code)}</div>
           <div className="font-bold text-sm leading-tight">{match.team_b}</div>
+          {!isFinished && teamRecords?.[match.team_b] && (
+            <RecordBadge record={teamRecords[match.team_b]} />
+          )}
           {isFinished && match.score_b !== null && (
             <div className={`text-2xl font-black mt-1 ${match.result === 'team_b' ? 'text-green-400' : 'text-white/60'}`}>
               {match.score_b}

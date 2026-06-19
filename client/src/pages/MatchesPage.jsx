@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 import { usePlayer } from '../lib/PlayerContext';
 import { sortedRounds, toCT, toCTDateKey } from '../lib/utils';
@@ -14,6 +14,7 @@ export default function MatchesPage() {
   const [view, setView] = useState('date'); // 'date' | 'group'
   const [loading, setLoading] = useState(true);
   const prevCorrect = useRef(0);
+  const dateTabRefs = useRef({});
 
   useEffect(() => {
     loadAll();
@@ -66,12 +67,28 @@ export default function MatchesPage() {
     }
   }
 
+  // Scroll active date tab into center when it changes
+  useEffect(() => {
+    dateTabRefs.current[activeDate]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [activeDate]);
+
   function handlePredictionChange(matchId, prediction) {
     setPredictions(prev => ({ ...prev, [matchId]: prediction }));
   }
 
   const rounds = sortedRounds(matches);
   const today = toCTDateKey(new Date().toISOString());
+
+  // Build W/D/L record for every team from finished matches
+  const teamRecords = {};
+  for (const m of matches) {
+    if (m.status !== 'finished' || !m.result) continue;
+    if (!teamRecords[m.team_a]) teamRecords[m.team_a] = { w: 0, d: 0, l: 0 };
+    if (!teamRecords[m.team_b]) teamRecords[m.team_b] = { w: 0, d: 0, l: 0 };
+    if (m.result === 'team_a')      { teamRecords[m.team_a].w++; teamRecords[m.team_b].l++; }
+    else if (m.result === 'team_b') { teamRecords[m.team_b].w++; teamRecords[m.team_a].l++; }
+    else                            { teamRecords[m.team_a].d++; teamRecords[m.team_b].d++; }
+  }
 
   // All unique match dates in CT, sorted
   const allDates = [...new Set(matches.map(m => toCTDateKey(m.kickoff_time)))].sort();
@@ -151,6 +168,7 @@ export default function MatchesPage() {
               return (
                 <button
                   key={date}
+                  ref={el => { dateTabRefs.current[date] = el; }}
                   onClick={() => setActiveDate(date)}
                   className={`flex-shrink-0 flex flex-col items-center px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border
                     ${activeDate === date
@@ -204,6 +222,7 @@ export default function MatchesPage() {
             match={match}
             prediction={predictions[match.id]}
             onPredictionChange={handlePredictionChange}
+            teamRecords={teamRecords}
           />
         ))}
       </div>
