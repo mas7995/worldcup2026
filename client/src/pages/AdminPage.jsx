@@ -146,7 +146,14 @@ export default function AdminPage() {
 
       {tab === 'results' && (
         <div className="space-y-2">
-          {matches.map(m => (
+          {[...matches].sort((a, b) => {
+            const order = { live: 0, upcoming: 1, finished: 2 };
+            const oa = order[a.status] ?? 1, ob = order[b.status] ?? 1;
+            if (oa !== ob) return oa - ob;
+            // upcoming: soonest first; finished: most recent first
+            const dir = a.status === 'finished' ? -1 : 1;
+            return dir * (new Date(a.kickoff_time) - new Date(b.kickoff_time));
+          }).map(m => (
             <div key={m.id} className="card">
               <div className="flex items-center justify-between">
                 <div>
