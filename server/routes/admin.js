@@ -37,6 +37,22 @@ router.post('/result', requirePin, (req, res) => {
   res.json({ ok: true, matchId, result });
 });
 
+// Clear a match result — resets back to upcoming
+router.post('/clear-result', requirePin, (req, res) => {
+  const { matchId } = req.body;
+  if (!matchId) return res.status(400).json({ error: 'matchId required' });
+
+  const db = getDb();
+  const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId);
+  if (!match) return res.status(404).json({ error: 'Match not found' });
+
+  db.prepare(`UPDATE matches SET result = NULL, score_a = NULL, score_b = NULL, status = 'upcoming' WHERE id = ?`).run(matchId);
+  // Reset is_correct to NULL for all predictions on this match
+  db.prepare(`UPDATE predictions SET is_correct = NULL WHERE match_id = ?`).run(matchId);
+
+  res.json({ ok: true });
+});
+
 // Trigger API sync
 router.post('/sync', requirePin, async (req, res) => {
   const result = await syncMatchResults();

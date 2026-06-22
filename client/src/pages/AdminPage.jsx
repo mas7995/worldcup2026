@@ -60,6 +60,17 @@ export default function AdminPage() {
     }
   }
 
+  async function handleClearResult(matchId) {
+    try {
+      await api.admin.clearResult(pin, matchId);
+      setMsg('Result cleared');
+      setEditMatch(null);
+      loadAll();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
   async function handleSync() {
     try {
       const res = await api.admin.sync(pin);
@@ -150,54 +161,92 @@ export default function AdminPage() {
             const order = { live: 0, upcoming: 1, finished: 2 };
             const oa = order[a.status] ?? 1, ob = order[b.status] ?? 1;
             if (oa !== ob) return oa - ob;
-            // upcoming: soonest first; finished: most recent first
             const dir = a.status === 'finished' ? -1 : 1;
             return dir * (new Date(a.kickoff_time) - new Date(b.kickoff_time));
           }).map(m => (
             <div key={m.id} className="card">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-sm">{flagEmoji(m.team_a_code)} {m.team_a} vs {m.team_b} {flagEmoji(m.team_b_code)}</div>
-                  <div className="text-xs text-white/40">{toCT(m.kickoff_time)} CT · {m.round} · <span className={`font-bold ${m.status === 'live' ? 'text-green-400' : m.status === 'finished' ? 'text-white/60' : 'text-yellow-400'}`}>{m.status}</span></div>
+              {/* Match header — stacked for mobile */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  {/* Teams on one line using codes to save space */}
+                  <div className="font-bold text-sm flex items-center gap-1 flex-wrap">
+                    <span>{flagEmoji(m.team_a_code)}</span>
+                    <span className="truncate max-w-[80px]">{m.team_a}</span>
+                    <span className="text-white/40 text-xs">vs</span>
+                    <span className="truncate max-w-[80px]">{m.team_b}</span>
+                    <span>{flagEmoji(m.team_b_code)}</span>
+                  </div>
+                  <div className="text-xs text-white/40 mt-0.5">
+                    {toCT(m.kickoff_time)} CT · {m.round}
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={`text-xs font-bold ${m.status === 'live' ? 'text-green-400' : m.status === 'finished' ? 'text-white/40' : 'text-yellow-400'}`}>
+                      {m.status}
+                    </span>
+                    {m.result && (
+                      <span className="text-xs text-green-400">
+                        · {m.result === 'team_a' ? m.team_a_code : m.result === 'team_b' ? m.team_b_code : 'Draw'}
+                        {m.score_a !== null ? ` ${m.score_a}–${m.score_b}` : ''}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => { setEditMatch(editMatch === m.id ? null : m.id); setResultForm({ result: m.result || '', scoreA: m.score_a ?? '', scoreB: m.score_b ?? '' }); }}
+                    className="btn-secondary text-xs py-1.5 px-2"
+                  >
+                    {editMatch === m.id ? 'Cancel' : m.result ? 'Edit' : 'Set'}
+                  </button>
                   {m.result && (
-                    <div className="text-xs text-green-400 mt-1">
-                      Result: {m.result === 'team_a' ? m.team_a : m.result === 'team_b' ? m.team_b : 'Draw'}
-                      {m.score_a !== null ? ` (${m.score_a}-${m.score_b})` : ''}
-                    </div>
+                    <button
+                      onClick={() => handleClearResult(m.id)}
+                      className="text-xs text-red-400 hover:text-red-300 cursor-pointer text-center py-1"
+                    >
+                      Clear
+                    </button>
                   )}
                 </div>
-                <button
-                  onClick={() => { setEditMatch(editMatch === m.id ? null : m.id); setResultForm({ result: m.result || '', scoreA: m.score_a ?? '', scoreB: m.score_b ?? '' }); }}
-                  className="btn-secondary text-xs"
-                >
-                  {editMatch === m.id ? 'Cancel' : 'Set Result'}
-                </button>
               </div>
+
               {editMatch === m.id && (
                 <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
-                  <div className="flex gap-2">
+                  {/* Win/Draw/Win — flags only to save space */}
+                  <div className="flex gap-1.5">
                     <button onClick={() => setResultForm(f => ({ ...f, result: 'team_a' }))}
-                      className={`flex-1 py-1.5 rounded-xl text-xs font-bold border cursor-pointer transition-all ${resultForm.result === 'team_a' ? 'border-blue-400 bg-blue-500/20 text-blue-200' : 'border-white/20 bg-white/5 text-white/60'}`}>
-                      {m.team_a} Wins
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold border cursor-pointer transition-all flex flex-col items-center gap-0.5
+                        ${resultForm.result === 'team_a' ? 'border-blue-400 bg-blue-500/20 text-blue-200' : 'border-white/20 bg-white/5 text-white/60'}`}>
+                      <span className="text-base">{flagEmoji(m.team_a_code)}</span>
+                      <span>Win</span>
                     </button>
                     <button onClick={() => setResultForm(f => ({ ...f, result: 'draw' }))}
-                      className={`flex-1 py-1.5 rounded-xl text-xs font-bold border cursor-pointer transition-all ${resultForm.result === 'draw' ? 'border-yellow-400 bg-yellow-500/20 text-yellow-200' : 'border-white/20 bg-white/5 text-white/60'}`}>
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold border cursor-pointer transition-all
+                        ${resultForm.result === 'draw' ? 'border-yellow-400 bg-yellow-500/20 text-yellow-200' : 'border-white/20 bg-white/5 text-white/60'}`}>
                       Draw
                     </button>
                     <button onClick={() => setResultForm(f => ({ ...f, result: 'team_b' }))}
-                      className={`flex-1 py-1.5 rounded-xl text-xs font-bold border cursor-pointer transition-all ${resultForm.result === 'team_b' ? 'border-red-400 bg-red-500/20 text-red-200' : 'border-white/20 bg-white/5 text-white/60'}`}>
-                      {m.team_b} Wins
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold border cursor-pointer transition-all flex flex-col items-center gap-0.5
+                        ${resultForm.result === 'team_b' ? 'border-red-400 bg-red-500/20 text-red-200' : 'border-white/20 bg-white/5 text-white/60'}`}>
+                      <span className="text-base">{flagEmoji(m.team_b_code)}</span>
+                      <span>Win</span>
                     </button>
                   </div>
+                  {/* Score inputs — numeric keyboard on mobile */}
                   <div className="flex gap-2 items-center">
-                    <input type="number" placeholder={`${m.team_a} score`} value={resultForm.scoreA}
+                    <input
+                      type="number" inputMode="numeric" pattern="[0-9]*"
+                      placeholder="0" value={resultForm.scoreA}
                       onChange={e => setResultForm(f => ({ ...f, scoreA: e.target.value }))}
-                      className="flex-1 bg-white/10 border border-white/20 rounded-xl px-3 py-1.5 text-white text-sm outline-none" />
-                    <span className="text-white/40">-</span>
-                    <input type="number" placeholder={`${m.team_b} score`} value={resultForm.scoreB}
+                      className="w-16 bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-center text-lg font-black outline-none" />
+                    <span className="text-white/40 font-bold">–</span>
+                    <input
+                      type="number" inputMode="numeric" pattern="[0-9]*"
+                      placeholder="0" value={resultForm.scoreB}
                       onChange={e => setResultForm(f => ({ ...f, scoreB: e.target.value }))}
-                      className="flex-1 bg-white/10 border border-white/20 rounded-xl px-3 py-1.5 text-white text-sm outline-none" />
-                    <button onClick={() => handleSetResult(m.id)} className="btn-primary text-xs px-3">Save</button>
+                      className="w-16 bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-center text-lg font-black outline-none" />
+                    <button onClick={() => handleSetResult(m.id)} className="btn-primary text-sm flex-1">
+                      Save
+                    </button>
                   </div>
                 </div>
               )}
