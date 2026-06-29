@@ -5,8 +5,8 @@ const cors = require('cors');
 const path = require('path');
 const cron = require('node-cron');
 const { getDb } = require('./db');
-const { syncMatchResults, syncByDate, getRequestCount } = require('./apiSync');
 const { reseed } = require('./reseed');
+const { ensureGroupStageComplete, syncFromApiFootball } = require('./syncAll');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -27,34 +27,19 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
-// ─── CRON: Live score sync ───────────────────────────────────────────────────
-// Every 15 min, only fires when a match is actively in play (0–115 min after kickoff)
-cron.schedule('*/15 * * * *', async () => {
-  const db = getDb();
-  const activeNow = db.prepare(`
-    SELECT COUNT(*) as cnt FROM matches
-    WHERE status = 'live'
-    OR (
-      status = 'upcoming'
-      AND kickoff_time <= datetime('now')
-      AND kickoff_time >= datetime('now', '-115 minutes')
-    )
-  `).get();
-
-  if (activeNow.cnt > 0) {
-    console.log(`[cron] ${activeNow.cnt} match(es) in play — syncing...`);
-    const result = await syncMatchResults();
-    console.log(`[cron] Sync done: ${JSON.stringify(result)}`);
+// ─── CRON: Auto-sync from api-football.com every 20 min ─────────────────────
+// 72 calls/day max — well within the 100/day free tier
+cron.schedule('*/20 * * * *', async () => {
+  const apiKey = process.env.API_FOOTBALL_KEY;
+  if (!apiKey) return; // no key configured, skip silently
+  try {
+    const result = await syncFromApiFootball(apiKey);
+    if (!result.skipped) {
+      console.log(`[cron] api-football sync: group=${result.groupUpdated}, knockout=${result.knockoutUpdated}, calls today=${result.callsToday}`);
+    }
+  } catch (err) {
+    console.error('[cron] api-football sync error:', err.message);
   }
-});
-
-// ─── CRON: Daily catch-up ────────────────────────────────────────────────────
-// 4 AM CT (9 AM UTC) — picks up any results missed while server was idle
-cron.schedule('0 9 * * *', async () => {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const result = await syncByDate(yesterday.toISOString().slice(0, 10));
-  console.log(`[cron] Daily catch-up: ${JSON.stringify(result)}`);
 });
 
 // ─── STARTUP ─────────────────────────────────────────────────────────────────
@@ -70,20 +55,39 @@ async function start() {
       } catch (err) {
         console.error('[startup] Reseed failed:', err.message);
         console.warn('[startup] Falling back to placeholder schedule.');
-        require('./seed');
+        require('./seed').seed();
       }
     } else {
-      console.warn('[startup] No WORLDCUP_API_KEY set — loaded placeholder schedule.');
-      console.warn('[startup] Add WORLDCUP_API_KEY to server/.env and delete the DB to get real fixtures.');
-      require('./seed');
+      console.warn('[startup] No WORLDCUP_API_KEY set — loading placeholder schedule.');
+      require('./seed').seed();
     }
   } else {
     console.log(`[startup] Database has ${matchCount} matches — skipping seed.`);
   }
 
+  // Always ensure all group stage matches are present (fixes partial worldcupapi.com reseeds)
+  ensureGroupStageComplete();
+
+  // Kick off an api-football.com sync shortly after startup
+  const apiKey = process.env.API_FOOTBALL_KEY;
+  if (apiKey) {
+    setTimeout(async () => {
+      try {
+        console.log('[startup] Running initial api-football.com sync...');
+        const result = await syncFromApiFootball(apiKey);
+        if (!result.skipped) {
+          console.log(`[startup] Initial sync done: group=${result.groupUpdated}, knockout=${result.knockoutUpdated}`);
+        }
+      } catch (err) {
+        console.error('[startup] Initial sync error:', err.message);
+      }
+    }, 5000);
+  } else {
+    console.warn('[startup] API_FOOTBALL_KEY not set — auto-sync disabled. Add it to env vars to enable.');
+  }
+
   app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`API requests used: ${getRequestCount()}`);
   });
 }
 

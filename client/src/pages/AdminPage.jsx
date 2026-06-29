@@ -71,23 +71,17 @@ export default function AdminPage() {
     }
   }
 
-  async function handleSync() {
-    try {
-      const res = await api.admin.sync(pin);
-      setMsg(`Synced ${res.synced} matches`);
-      loadAll();
-    } catch (e) {
-      setError(e.message);
-    }
-  }
-
-  async function handleSyncKnockout() {
+  async function handleSyncAll() {
     setMsg('');
     setError('');
     try {
-      setMsg('Syncing knockout bracket…');
-      const res = await api.admin.syncKnockout(pin);
-      setMsg(`Knockout synced — ${res.updated} matches updated from api-football.com`);
+      setMsg('Syncing from api-football.com…');
+      const res = await api.admin.syncAll(pin);
+      if (res.skipped) {
+        setMsg(`Sync skipped — daily limit reached (${res.callsToday} calls today)`);
+      } else {
+        setMsg(`Synced — ${res.groupUpdated} group stage + ${res.knockoutUpdated} knockout matches updated (call ${res.callsToday}/${res.dailyLimit} today)`);
+      }
       loadAll();
     } catch (e) {
       setError(e.message);
@@ -150,8 +144,7 @@ export default function AdminPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-black">⚙️ Admin</h2>
         <div className="flex gap-2">
-          <button onClick={handleSyncKnockout} className="btn-secondary text-xs">🏆 Sync Knockout</button>
-          <button onClick={handleSync} className="btn-secondary text-xs">🔄 Sync</button>
+          <button onClick={handleSyncAll} className="btn-secondary text-xs">🔄 Sync All</button>
           <button onClick={handleReset} className="text-xs bg-red-500/20 border border-red-500/40 text-red-300 px-3 py-1.5 rounded-xl hover:bg-red-500/30 cursor-pointer">💀 Reset</button>
         </div>
       </div>
@@ -307,34 +300,42 @@ export default function AdminPage() {
       )}
 
       {tab === 'api' && (
-        <div className="card space-y-4">
-          <h3 className="text-sm font-bold text-white/60 uppercase tracking-wider">API Budget</h3>
+        <div className="space-y-4">
           {apiUsage ? (
             <>
-              <div className="flex gap-3">
-                <div className="flex-1 bg-white/5 rounded-xl p-3 text-center">
-                  <div className="text-2xl font-black text-white">{apiUsage.total}</div>
-                  <div className="text-xs text-white/40">used</div>
-                </div>
-                <div className="flex-1 bg-white/5 rounded-xl p-3 text-center">
-                  <div className={`text-2xl font-black ${apiUsage.remaining < 100 ? 'text-red-400' : apiUsage.remaining < 300 ? 'text-yellow-400' : 'text-green-400'}`}>
-                    {apiUsage.remaining}
+              {/* api-football.com — primary sync */}
+              {apiUsage.apiFootball && (
+                <div className="card space-y-3">
+                  <h3 className="text-sm font-bold text-white/60 uppercase tracking-wider">api-football.com (auto-sync)</h3>
+                  <div className="flex gap-3">
+                    <div className="flex-1 bg-white/5 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-black text-white">{apiUsage.apiFootball.today}</div>
+                      <div className="text-xs text-white/40">today</div>
+                    </div>
+                    <div className="flex-1 bg-white/5 rounded-xl p-3 text-center">
+                      <div className={`text-2xl font-black ${apiUsage.apiFootball.remaining < 10 ? 'text-red-400' : apiUsage.apiFootball.remaining < 30 ? 'text-yellow-400' : 'text-green-400'}`}>
+                        {apiUsage.apiFootball.remaining}
+                      </div>
+                      <div className="text-xs text-white/40">remaining</div>
+                    </div>
+                    <div className="flex-1 bg-white/5 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-black text-white/60">{apiUsage.apiFootball.dailyLimit}</div>
+                      <div className="text-xs text-white/40">daily limit</div>
+                    </div>
                   </div>
-                  <div className="text-xs text-white/40">remaining</div>
+                  <div className="w-full bg-white/10 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${apiUsage.apiFootball.remaining < 10 ? 'bg-red-400' : apiUsage.apiFootball.remaining < 30 ? 'bg-yellow-400' : 'bg-green-400'}`}
+                      style={{ width: `${Math.min(100, (apiUsage.apiFootball.today / apiUsage.apiFootball.dailyLimit) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-white/30">Auto-syncs every 20 min. Resets daily at midnight UTC.</p>
                 </div>
-                <div className="flex-1 bg-white/5 rounded-xl p-3 text-center">
-                  <div className="text-2xl font-black text-white/60">{apiUsage.budget}</div>
-                  <div className="text-xs text-white/40">budget</div>
-                </div>
-              </div>
-              <div className="w-full bg-white/10 rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full transition-all ${apiUsage.remaining < 100 ? 'bg-red-400' : apiUsage.remaining < 300 ? 'bg-yellow-400' : 'bg-green-400'}`}
-                  style={{ width: `${Math.min(100, (apiUsage.total / apiUsage.budget) * 100)}%` }}
-                />
-              </div>
-              <div className="space-y-1">
-                <h4 className="text-xs font-bold text-white/40 uppercase">Recent calls</h4>
+              )}
+
+              {/* Recent API log */}
+              <div className="card space-y-1">
+                <h4 className="text-xs font-bold text-white/40 uppercase mb-2">Recent calls</h4>
                 {apiUsage.recent.map((r, i) => (
                   <div key={i} className="text-xs flex gap-2 py-0.5 border-b border-white/5">
                     <span className="text-white/40 w-28 flex-shrink-0">
@@ -347,7 +348,7 @@ export default function AdminPage() {
               </div>
             </>
           ) : (
-            <div className="text-white/40 text-sm text-center py-4">Loading...</div>
+            <div className="card text-white/40 text-sm text-center py-4">Loading...</div>
           )}
         </div>
       )}

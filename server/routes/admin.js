@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { getDb } = require('../db');
 const { updateScoresForMatch } = require('../scoring');
-const { syncMatchResults, syncByDate, getRequestCount } = require('../apiSync');
-const { syncKnockoutBracket } = require('../syncKnockout');
+const { getRequestCount } = require('../apiSync');
+const { syncFromApiFootball, getApiFootballCallsToday } = require('../syncAll');
 
 const ADMIN_PIN = process.env.ADMIN_PIN || '2026';
 
@@ -53,20 +53,29 @@ router.post('/clear-result', requirePin, (req, res) => {
   res.json({ ok: true });
 });
 
-// Trigger live score sync
-router.post('/sync', requirePin, async (req, res) => {
-  const result = await syncMatchResults();
-  res.json(result);
-});
-
-// Sync knockout bracket from api-football.com
-router.post('/sync-knockout', requirePin, async (req, res) => {
+// Comprehensive sync from api-football.com (group stage results + knockout bracket)
+router.post('/sync-all', requirePin, async (req, res) => {
   try {
-    const result = await syncKnockoutBracket(process.env.API_FOOTBALL_KEY);
+    const result = await syncFromApiFootball(process.env.API_FOOTBALL_KEY);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Keep /sync-knockout as alias
+router.post('/sync-knockout', requirePin, async (req, res) => {
+  try {
+    const result = await syncFromApiFootball(process.env.API_FOOTBALL_KEY);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Legacy worldcupapi.com sync (now inactive — kept for backward compat)
+router.post('/sync', requirePin, async (req, res) => {
+  res.json({ synced: 0, note: 'worldcupapi.com is no longer active. Use /admin/sync-all instead.' });
 });
 
 // Get full audit trail
@@ -87,10 +96,17 @@ router.get('/audit', requirePin, (req, res) => {
 router.get('/api-usage', requirePin, (req, res) => {
   const db = getDb();
   const total = getRequestCount();
+  const afToday = getApiFootballCallsToday();
   const recent = db.prepare(
     'SELECT endpoint, called_at, result FROM api_log ORDER BY called_at DESC LIMIT 50'
   ).all();
-  res.json({ total, budget: 1500, remaining: 1500 - total, recent });
+  res.json({
+    total,
+    budget: 1500,
+    remaining: 1500 - total,
+    apiFootball: { today: afToday, dailyLimit: 90, remaining: 90 - afToday },
+    recent,
+  });
 });
 
 // Create a player (admin bypass — no cap, no self-registration flow)
