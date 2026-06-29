@@ -60,10 +60,34 @@ router.get('/bracket', (req, res) => {
     groups[g] = { matches, standings };
   }
 
-  // Knockout rounds
+  // Knockout rounds — with projected opponents for undecided slots.
+  // Each knockout match stores its bracket_num and the source refs (e.g. "W74"
+  // = winner of match 74). For a slot whose team isn't known yet, look up the
+  // feeder match and project its two teams so the UI can show "Winner of X/Y".
+  const byNum = {};
+  for (const m of all) if (m.bracket_num != null) byNum[m.bracket_num] = m;
+
+  function sideProjection(srcRef) {
+    const mm = /^([WL])(\d+)$/.exec(srcRef || '');
+    if (!mm) return null;
+    const type = mm[1] === 'W' ? 'Winner' : 'Loser';
+    const feeder = byNum[Number(mm[2])];
+    if (!feeder) return { type, a: null, b: null };
+    const a = feeder.team_a_code && feeder.team_a_code !== 'TBD'
+      ? { name: feeder.team_a, code: feeder.team_a_code } : null;
+    const b = feeder.team_b_code && feeder.team_b_code !== 'TBD'
+      ? { name: feeder.team_b, code: feeder.team_b_code } : null;
+    return { type, a, b };
+  }
+
   const knockout = {};
   for (const r of KNOCKOUT_ROUNDS) {
-    knockout[r] = all.filter(m => m.round === r);
+    knockout[r] = all.filter(m => m.round === r).map(m => {
+      const out = { ...m };
+      if ((!m.team_a_code || m.team_a_code === 'TBD') && m.src_a) out.proj_a = sideProjection(m.src_a);
+      if ((!m.team_b_code || m.team_b_code === 'TBD') && m.src_b) out.proj_b = sideProjection(m.src_b);
+      return out;
+    });
   }
 
   res.json({ groups, knockout });

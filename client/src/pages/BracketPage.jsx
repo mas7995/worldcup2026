@@ -272,12 +272,12 @@ function KnockoutCard({ match: m }) {
     >
       <TeamSlot
         name={m.team_a} code={m.team_a_code} score={m.score_a}
-        winner={m.result === 'team_a'} finished={finished}
+        winner={m.result === 'team_a'} finished={finished} proj={m.proj_a}
       />
       <div className="border-t border-white/10" />
       <TeamSlot
         name={m.team_b} code={m.team_b_code} score={m.score_b}
-        winner={m.result === 'team_b'} finished={finished}
+        winner={m.result === 'team_b'} finished={finished} proj={m.proj_b}
       />
       {isLive && (
         <div className="text-center py-0.5 bg-green-500/20 text-green-400 text-[10px] font-bold animate-pulse">
@@ -288,8 +288,25 @@ function KnockoutCard({ match: m }) {
   );
 }
 
-function TeamSlot({ name, code, score, winner, finished }) {
+function TeamSlot({ name, code, score, winner, finished, proj }) {
   const isTbd = !code || code === 'TBD';
+
+  // Undecided slot, but we can project who's coming: "Winner of X / Y"
+  if (isTbd && proj && (proj.a || proj.b)) {
+    return (
+      <div className="flex items-center gap-1.5 px-2 py-2 text-white/45">
+        <span className="text-[9px] font-bold uppercase tracking-wide text-white/30 flex-shrink-0">
+          {proj.type === 'Loser' ? 'Loser' : 'Wins'}
+        </span>
+        <span className="flex-1 flex items-center gap-1 min-w-0">
+          <span className="text-sm leading-none">{proj.a ? flagEmoji(proj.a.code) : '🏴'}</span>
+          <span className="text-white/25 text-[10px]">/</span>
+          <span className="text-sm leading-none">{proj.b ? flagEmoji(proj.b.code) : '🏴'}</span>
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex items-center gap-1.5 px-2 py-2
       ${isTbd ? 'text-white/25'

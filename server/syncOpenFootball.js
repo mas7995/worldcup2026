@@ -176,6 +176,11 @@ async function syncKnockoutFromOpenFootball() {
         score_a = null; score_b = null; result = null;
       }
 
+      // Persist the bracket structure so the UI can project upcoming opponents:
+      // the match number, and the raw source ref for each slot when unresolved.
+      const src_a = /^[WL]\d+$/.test(of.team1) ? of.team1 : null;
+      const src_b = /^[WL]\d+$/.test(of.team2) ? of.team2 : null;
+
       db.prepare(`
         UPDATE matches SET
           team_a = ?, team_b = ?,
@@ -183,9 +188,11 @@ async function syncKnockoutFromOpenFootball() {
           kickoff_time = ?,
           status = ?,
           result = ?,
-          score_a = ?, score_b = ?
+          score_a = ?, score_b = ?,
+          bracket_num = ?, src_a = ?, src_b = ?
         WHERE id = ?
-      `).run(team_a, team_b, team_a_code, team_b_code, of._iso, status, result, score_a, score_b, dbm.id);
+      `).run(team_a, team_b, team_a_code, team_b_code, of._iso, status, result, score_a, score_b,
+             of.num ?? null, src_a, src_b, dbm.id);
 
       if (status === 'finished' && result) updateScoresForMatch(dbm.id);
       updated++;
