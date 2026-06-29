@@ -97,6 +97,12 @@ export const ROUND_ORDER = [
   'Round of 32', 'Round of 16', 'Quarterfinals', 'Semifinals', 'Third Place', 'Final',
 ];
 
+// Knockout rounds can't end in a draw (extra time + penalties decide a winner)
+const KNOCKOUT_ROUNDS = ['Round of 32', 'Round of 16', 'Quarterfinals', 'Semifinals', 'Third Place', 'Final'];
+export function isKnockout(round) {
+  return KNOCKOUT_ROUNDS.includes(round);
+}
+
 export function sortedRounds(matches) {
   const rounds = [...new Set(matches.map(m => m.round))];
   return rounds.sort((a, b) => ROUND_ORDER.indexOf(a) - ROUND_ORDER.indexOf(b));
