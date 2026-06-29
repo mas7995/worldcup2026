@@ -92,6 +92,33 @@ router.get('/audit', requirePin, (req, res) => {
   res.json(audit);
 });
 
+// Diagnostics — shows whether the API is wired up and the real state of the schedule
+router.get('/diagnostics', requirePin, (req, res) => {
+  const db = getDb();
+  const nowIso = new Date().toISOString();
+
+  const byRound = db.prepare(
+    "SELECT round, COUNT(*) as cnt, SUM(CASE WHEN external_id IS NOT NULL THEN 1 ELSE 0 END) as synced FROM matches GROUP BY round"
+  ).all();
+
+  const nextUpcoming = db.prepare(
+    "SELECT team_a, team_b, round, kickoff_time, status FROM matches WHERE kickoff_time >= ? ORDER BY kickoff_time ASC LIMIT 1"
+  ).get(nowIso);
+
+  const r32 = db.prepare(
+    "SELECT COUNT(*) as total, SUM(CASE WHEN team_a_code = 'TBD' OR team_b_code = 'TBD' THEN 1 ELSE 0 END) as tbd FROM matches WHERE round = 'Round of 32'"
+  ).get();
+
+  res.json({
+    apiFootballKeySet: !!process.env.API_FOOTBALL_KEY,
+    apiFootballCallsToday: getApiFootballCallsToday(),
+    serverTimeUtc: nowIso,
+    nextUpcoming,
+    roundOf32: { total: r32.total, stillTBD: r32.tbd },
+    byRound,
+  });
+});
+
 // API usage stats
 router.get('/api-usage', requirePin, (req, res) => {
   const db = getDb();

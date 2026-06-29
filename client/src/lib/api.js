@@ -67,6 +67,8 @@ export const api = {
       request('/admin/matches', { headers: { 'x-admin-pin': pin } }),
     getApiUsage: (pin) =>
       request('/admin/api-usage', { headers: { 'x-admin-pin': pin } }),
+    getDiagnostics: (pin) =>
+      request('/admin/diagnostics', { headers: { 'x-admin-pin': pin } }),
     resetPlayerPin: (adminPin, playerId, newPin) =>
       request(`/admin/players/${playerId}/pin`, {
         method: 'PATCH',
