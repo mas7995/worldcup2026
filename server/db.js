@@ -93,6 +93,12 @@ function migrate(db) {
     called_at TEXT NOT NULL DEFAULT (datetime('now')),
     result TEXT
   )`); } catch {}
+  // Bracket projection: store each knockout match's number and the source
+  // references for each slot (e.g. "W74" = winner of match 74) so the bracket
+  // can show projected opponents before feeder games are played.
+  try { db.exec('ALTER TABLE matches ADD COLUMN bracket_num INTEGER'); } catch {}
+  try { db.exec('ALTER TABLE matches ADD COLUMN src_a TEXT'); } catch {}
+  try { db.exec('ALTER TABLE matches ADD COLUMN src_b TEXT'); } catch {}
 }
 
 module.exports = { getDb };
