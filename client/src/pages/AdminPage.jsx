@@ -14,6 +14,7 @@ export default function AdminPage() {
   const [editMatch, setEditMatch] = useState(null);
   const [resultForm, setResultForm] = useState({ result: '', scoreA: '', scoreB: '' });
   const [apiUsage, setApiUsage] = useState(null);
+  const [diag, setDiag] = useState(null);
 
   async function handlePinSubmit(e) {
     e.preventDefault();
@@ -28,16 +29,18 @@ export default function AdminPage() {
 
   async function loadAll() {
     try {
-      const [m, a, p, u] = await Promise.all([
+      const [m, a, p, u, d] = await Promise.all([
         api.admin.getMatches(pin),
         api.admin.getAudit(pin),
         api.getPlayers(),
         api.admin.getApiUsage(pin),
+        api.admin.getDiagnostics(pin),
       ]);
       setMatches(m);
       setAudit(a);
       setPlayers(p);
       setApiUsage(u);
+      setDiag(d);
     } catch (e) {
       setError(e.message);
     }
@@ -313,6 +316,32 @@ export default function AdminPage() {
 
       {tab === 'api' && (
         <div className="space-y-4">
+          {/* System diagnostics — is the API wired up? */}
+          {diag && (
+            <div className="card space-y-2">
+              <h3 className="text-sm font-bold text-white/60 uppercase tracking-wider">System Status</h3>
+              <div className={`flex items-center gap-2 text-sm font-bold ${diag.apiFootballKeySet ? 'text-green-400' : 'text-red-400'}`}>
+                <span>{diag.apiFootballKeySet ? '✅' : '❌'}</span>
+                <span>API key {diag.apiFootballKeySet ? 'is connected' : 'NOT set — add API_FOOTBALL_KEY in Railway'}</span>
+              </div>
+              <div className="text-xs text-white/60">
+                Round of 32: <span className={diag.roundOf32.stillTBD > 0 ? 'text-yellow-400' : 'text-green-400'}>
+                  {diag.roundOf32.total - diag.roundOf32.stillTBD}/{diag.roundOf32.total} teams filled in
+                </span>
+              </div>
+              {diag.nextUpcoming && (
+                <div className="text-xs text-white/60">
+                  Next game in DB: <span className="text-white">{diag.nextUpcoming.team_a} vs {diag.nextUpcoming.team_b}</span>
+                  {' '}({toCT(diag.nextUpcoming.kickoff_time)} CT)
+                </div>
+              )}
+              {!diag.apiFootballKeySet && (
+                <p className="text-xs text-white/40 pt-1">
+                  Once you add the key in Railway and redeploy, click <b>Sync All</b> above to pull the real bracket.
+                </p>
+              )}
+            </div>
+          )}
           {apiUsage ? (
             <>
               {/* api-football.com — primary sync */}
