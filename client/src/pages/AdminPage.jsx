@@ -418,26 +418,30 @@ function PlayerRow({ player, adminPin, matches, onRemove, onMsg, onError, onPick
                   {m.status === 'finished' && <span className="text-white/30">FT</span>}
                   {m.team_a} vs {m.team_b} · {toCT(m.kickoff_time)} CT
                 </div>
-                <div className="flex gap-1">
-                  {[
-                    { val: 'team_a', label: m.team_a, color: 'blue' },
-                    ...(isKnockout(m.round) ? [] : [{ val: 'draw', label: 'Draw', color: 'yellow' }]),
-                    { val: 'team_b', label: m.team_b, color: 'red' },
-                  ].map(({ val, label, color }) => (
-                    <button
-                      key={val}
-                      onClick={() => handlePick(m.id, val)}
-                      className={`flex-1 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer
-                        ${cur === val
-                          ? color === 'blue'   ? 'border-blue-400 bg-blue-500/30 text-blue-200'
-                          : color === 'yellow' ? 'border-yellow-400 bg-yellow-500/30 text-yellow-200'
-                          :                      'border-red-400 bg-red-500/30 text-red-200'
-                          : 'border-white/20 bg-white/5 text-white/60 hover:text-white'}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                {m.team_a_code === 'TBD' || m.team_b_code === 'TBD' ? (
+                  <p className="text-[11px] text-white/30 py-1">⏳ Teams not decided yet</p>
+                ) : (
+                  <div className="flex gap-1">
+                    {[
+                      { val: 'team_a', label: m.team_a, color: 'blue' },
+                      ...(isKnockout(m.round) ? [] : [{ val: 'draw', label: 'Draw', color: 'yellow' }]),
+                      { val: 'team_b', label: m.team_b, color: 'red' },
+                    ].map(({ val, label, color }) => (
+                      <button
+                        key={val}
+                        onClick={() => handlePick(m.id, val)}
+                        className={`flex-1 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer
+                          ${cur === val
+                            ? color === 'blue'   ? 'border-blue-400 bg-blue-500/30 text-blue-200'
+                            : color === 'yellow' ? 'border-yellow-400 bg-yellow-500/30 text-yellow-200'
+                            :                      'border-red-400 bg-red-500/30 text-red-200'
+                            : 'border-white/20 bg-white/5 text-white/60 hover:text-white'}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
