@@ -2,8 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getDb } = require('../db');
 const { updateScoresForMatch } = require('../scoring');
-const { getRequestCount } = require('../apiSync');
-const { syncFromApiFootball, getApiFootballCallsToday } = require('../syncAll');
+const { syncKnockoutFromOpenFootball } = require('../syncOpenFootball');
 
 const ADMIN_PIN = process.env.ADMIN_PIN || '2026';
 
@@ -53,29 +52,32 @@ router.post('/clear-result', requirePin, (req, res) => {
   res.json({ ok: true });
 });
 
-// Comprehensive sync from api-football.com (group stage results + knockout bracket)
+// Sync knockout bracket from openfootball (free, no API key)
 router.post('/sync-all', requirePin, async (req, res) => {
   try {
-    const result = await syncFromApiFootball(process.env.API_FOOTBALL_KEY);
+    const result = await syncKnockoutFromOpenFootball();
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Keep /sync-knockout as alias
+// Aliases for backward compatibility
 router.post('/sync-knockout', requirePin, async (req, res) => {
   try {
-    const result = await syncFromApiFootball(process.env.API_FOOTBALL_KEY);
+    const result = await syncKnockoutFromOpenFootball();
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
-
-// Legacy worldcupapi.com sync (now inactive — kept for backward compat)
 router.post('/sync', requirePin, async (req, res) => {
-  res.json({ synced: 0, note: 'worldcupapi.com is no longer active. Use /admin/sync-all instead.' });
+  try {
+    const result = await syncKnockoutFromOpenFootball();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Get full audit trail
@@ -110,8 +112,7 @@ router.get('/diagnostics', requirePin, (req, res) => {
   ).get();
 
   res.json({
-    apiFootballKeySet: !!process.env.API_FOOTBALL_KEY,
-    apiFootballCallsToday: getApiFootballCallsToday(),
+    dataSource: 'openfootball/worldcup.json (free, no key)',
     serverTimeUtc: nowIso,
     nextUpcoming,
     roundOf32: { total: r32.total, stillTBD: r32.tbd },
@@ -122,18 +123,10 @@ router.get('/diagnostics', requirePin, (req, res) => {
 // API usage stats
 router.get('/api-usage', requirePin, (req, res) => {
   const db = getDb();
-  const total = getRequestCount();
-  const afToday = getApiFootballCallsToday();
   const recent = db.prepare(
     'SELECT endpoint, called_at, result FROM api_log ORDER BY called_at DESC LIMIT 50'
   ).all();
-  res.json({
-    total,
-    budget: 1500,
-    remaining: 1500 - total,
-    apiFootball: { today: afToday, dailyLimit: 90, remaining: 90 - afToday },
-    recent,
-  });
+  res.json({ dataSource: 'openfootball/worldcup.json', recent });
 });
 
 // Create a player (admin bypass — no cap, no self-registration flow)

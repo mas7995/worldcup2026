@@ -15,13 +15,15 @@ export function flagEmoji(code) {
     ROU: '🇷🇴', SCO: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', SRB: '🇷🇸', SVK: '🇸🇰', SVN: '🇸🇮',
     SUI: '🇨🇭', SWE: '🇸🇪', TUR: '🇹🇷', UKR: '🇺🇦', WAL: '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
     // Africa
-    ALG: '🇩🇿', CMR: '🇨🇲', CPV: '🇨🇻', CIV: '🇨🇮', EGY: '🇪🇬',
-    GHA: '🇬🇭', MAR: '🇲🇦', NGA: '🇳🇬', RSA: '🇿🇦', SEN: '🇸🇳',
-    TUN: '🇹🇳',
+    ALG: '🇩🇿', CMR: '🇨🇲', CPV: '🇨🇻', CIV: '🇨🇮', COD: '🇨🇩',
+    EGY: '🇪🇬', GHA: '🇬🇭', MAR: '🇲🇦', NGA: '🇳🇬', RSA: '🇿🇦',
+    SEN: '🇸🇳', TUN: '🇹🇳',
     // Asia / Pacific
     AUS: '🇦🇺', CHN: '🇨🇳', IDN: '🇮🇩', IRN: '🇮🇷', IRQ: '🇮🇶',
     JPN: '🇯🇵', JOR: '🇯🇴', KOR: '🇰🇷', KSA: '🇸🇦', NZL: '🇳🇿',
     QAT: '🇶🇦', UZB: '🇺🇿',
+    // Other
+    BIH: '🇧🇦',
   };
   return map[code] || '🏴';
 }
