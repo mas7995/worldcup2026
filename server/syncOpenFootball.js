@@ -114,15 +114,26 @@ async function syncKnockoutFromOpenFootball() {
       const team_b_code = team2Real ? toCode(of.team2) : dbm.team_b_code;
 
       // Score / result
-      let status = 'upcoming';
-      let score_a = null, score_b = null, result = null;
+      let status, score_a, score_b, result;
       if (of.score && Array.isArray(of.score.ft)) {
+        // openfootball has a final score — authoritative, apply it
         score_a = of.score.ft[0];
         score_b = of.score.ft[1];
         status = 'finished';
         result = score_a > score_b ? 'team_a' : score_b > score_a ? 'team_b' : 'draw';
+      } else if (dbm.result) {
+        // No score from openfootball yet, but a result was already set
+        // (e.g. entered manually in the admin panel) — preserve it, never clobber.
+        status = dbm.status;
+        result = dbm.result;
+        score_a = dbm.score_a;
+        score_b = dbm.score_b;
       } else if (new Date(of._iso) <= new Date() && new Date(of._iso) >= new Date(Date.now() - 3 * 3600 * 1000)) {
         status = 'live';
+        score_a = null; score_b = null; result = null;
+      } else {
+        status = 'upcoming';
+        score_a = null; score_b = null; result = null;
       }
 
       db.prepare(`
