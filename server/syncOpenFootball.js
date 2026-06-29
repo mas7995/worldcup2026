@@ -85,10 +85,49 @@ async function syncKnockoutFromOpenFootball() {
   const db = getDb();
   let updated = 0;
 
+  // ── Resolve the bracket forward ──────────────────────────────────────────
+  // Each knockout match has a `num` (73–104). Later rounds reference earlier
+  // matches as "W74" (winner of match 74) or "L101" (loser of match 101).
+  // openfootball does NOT substitute team names into these slots, so we do it
+  // here: process matches in num order, compute each winner/loser, and feed
+  // them into the slots of subsequent rounds.
+  const byNum = {};
+  for (const m of knockout) {
+    byNum[m.num] = { ...m, _iso: toIsoUtc(m.date, m.time) };
+  }
+
+  function resolveRef(ref) {
+    const w = /^W(\d+)$/.exec(ref);
+    if (w && byNum[w[1]] && byNum[w[1]]._winner) return byNum[w[1]]._winner;
+    const l = /^L(\d+)$/.exec(ref);
+    if (l && byNum[l[1]] && byNum[l[1]]._loser) return byNum[l[1]]._loser;
+    return ref; // a real team name, or a slot we can't resolve yet
+  }
+
+  // Winner from a score, deciding ties via extra time (et) then penalties (p).
+  function decide(score) {
+    if (!score || !Array.isArray(score.ft)) return null;
+    const d = score.p || score.et || score.ft;
+    if (d[0] > d[1]) return 1;
+    if (d[1] > d[0]) return 2;
+    return 0; // tie with no decider — knockout shouldn't end here
+  }
+
+  const numsAsc = Object.keys(byNum).map(Number).sort((a, b) => a - b);
+  for (const num of numsAsc) {
+    const m = byNum[num];
+    m._t1 = resolveRef(m.team1);
+    m._t2 = resolveRef(m.team2);
+    const w = decide(m.score);
+    if (w === 1)      { m._winner = m._t1; m._loser = m._t2; }
+    else if (w === 2) { m._winner = m._t2; m._loser = m._t1; }
+  }
+
+  // ── Write resolved data into the DB (positionally, per round) ─────────────
   for (const [ofRound, dbRound] of Object.entries(KNOCKOUT_MAP)) {
     const ofMatches = knockout
+      .map(m => byNum[m.num])
       .filter(m => m.round === ofRound)
-      .map(m => ({ ...m, _iso: toIsoUtc(m.date, m.time) }))
       .sort((a, b) => new Date(a._iso) - new Date(b._iso));
 
     if (ofMatches.length === 0) continue;
@@ -103,50 +142,33 @@ async function syncKnockoutFromOpenFootball() {
       const of = ofMatches[i];
       const dbm = dbMatches[i];
 
-      // Only overwrite team names when real teams are known; otherwise keep
-      // existing label but still correct the kickoff date.
-      const team1Real = !isPlaceholder(of.team1);
-      const team2Real = !isPlaceholder(of.team2);
+      // Use resolved team names; only overwrite when a real team is known,
+      // otherwise keep the existing label but still correct the kickoff date.
+      const team1Real = !isPlaceholder(of._t1);
+      const team2Real = !isPlaceholder(of._t2);
 
-      const team_a = team1Real ? of.team1 : dbm.team_a;
-      const team_b = team2Real ? of.team2 : dbm.team_b;
-      const team_a_code = team1Real ? toCode(of.team1) : dbm.team_a_code;
-      const team_b_code = team2Real ? toCode(of.team2) : dbm.team_b_code;
+      const team_a = team1Real ? of._t1 : dbm.team_a;
+      const team_b = team2Real ? of._t2 : dbm.team_b;
+      const team_a_code = team1Real ? toCode(of._t1) : dbm.team_a_code;
+      const team_b_code = team2Real ? toCode(of._t2) : dbm.team_b_code;
 
       // Score / result
       let status, score_a, score_b, result;
-      if (of.score && Array.isArray(of.score.ft)) {
-        // openfootball has a final score — authoritative, apply it.
-        // Display the regulation (ft) score, but decide the winner using
-        // extra time (et) and penalties (p) when present — knockout games
-        // never end in a draw.
+      const w = decide(of.score);
+      if (of.score && Array.isArray(of.score.ft) && w !== null && w !== 0) {
+        // Final score with a decisive winner — display regulation (ft) score
         score_a = of.score.ft[0];
         score_b = of.score.ft[1];
-        const decisive = of.score.p || of.score.et || of.score.ft;
-        const [a, b] = decisive;
-        if (a > b) result = 'team_a';
-        else if (b > a) result = 'team_b';
-        else result = 'draw'; // tied with no penalty data — shouldn't happen in a knockout
-        // A knockout must have a winner. If the data still shows a tie (no
-        // et/p recorded yet), don't finalize it — leave for manual entry.
-        if (result === 'draw') {
-          if (dbm.result) {
-            status = dbm.status; result = dbm.result;
-            score_a = dbm.score_a; score_b = dbm.score_b;
-          } else {
-            status = 'live'; result = null; score_a = null; score_b = null;
-          }
-        } else {
-          status = 'finished';
-        }
+        result = w === 1 ? 'team_a' : 'team_b';
+        status = 'finished';
       } else if (dbm.result) {
-        // No score from openfootball yet, but a result was already set
-        // (e.g. entered manually in the admin panel) — preserve it, never clobber.
+        // A result was already set (e.g. entered manually, or a tie openfootball
+        // hasn't resolved yet) — preserve it, never clobber.
         status = dbm.status;
         result = dbm.result;
         score_a = dbm.score_a;
         score_b = dbm.score_b;
-      } else if (new Date(of._iso) <= new Date() && new Date(of._iso) >= new Date(Date.now() - 3 * 3600 * 1000)) {
+      } else if (new Date(of._iso) <= new Date() && new Date(of._iso) >= new Date(Date.now() - 4 * 3600 * 1000)) {
         status = 'live';
         score_a = null; score_b = null; result = null;
       } else {
