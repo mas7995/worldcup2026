@@ -49,6 +49,8 @@ export const api = {
       request('/admin/clear-result', { method: 'POST', headers: { 'x-admin-pin': pin }, body: { matchId } }),
     syncAll: (pin) =>
       request('/admin/sync-all', { method: 'POST', headers: { 'x-admin-pin': pin } }),
+    cleanupPhantomMatches: (pin) =>
+      request('/admin/cleanup-phantom-matches', { method: 'POST', headers: { 'x-admin-pin': pin } }),
     syncKnockout: (pin) =>
       request('/admin/sync-knockout', { method: 'POST', headers: { 'x-admin-pin': pin } }),
     getAudit: (pin) =>

@@ -189,6 +189,33 @@ router.delete('/players/:id', requirePin, (req, res) => {
   res.json({ ok: true });
 });
 
+// Delete phantom group stage matches (those with external_id IS NULL — inserted from seed placeholder data)
+// Safe to run: only removes matches that worldcupapi.com never confirmed, preserving real data
+router.post('/cleanup-phantom-matches', requirePin, (req, res) => {
+  const db = getDb();
+
+  // Find group stage matches with no external_id (these are seed.js placeholders, not real API data)
+  const phantoms = db.prepare(
+    "SELECT id FROM matches WHERE round LIKE 'Group %' AND (external_id IS NULL OR external_id = 'null')"
+  ).all();
+
+  if (phantoms.length === 0) {
+    return res.json({ deleted: 0, message: 'No phantom matches found' });
+  }
+
+  const ids = phantoms.map(m => m.id);
+  const placeholders = ids.map(() => '?').join(',');
+
+  db.transaction(() => {
+    db.prepare(`DELETE FROM prediction_audit WHERE match_id IN (${placeholders})`).run(...ids);
+    db.prepare(`DELETE FROM reactions WHERE match_id IN (${placeholders})`).run(...ids);
+    db.prepare(`DELETE FROM predictions WHERE match_id IN (${placeholders})`).run(...ids);
+    db.prepare(`DELETE FROM matches WHERE id IN (${placeholders})`).run(...ids);
+  })();
+
+  res.json({ deleted: phantoms.length });
+});
+
 // Reset game (nuclear)
 router.post('/reset', requirePin, (req, res) => {
   const { confirm } = req.body;

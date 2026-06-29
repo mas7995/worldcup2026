@@ -6,7 +6,7 @@ const path = require('path');
 const cron = require('node-cron');
 const { getDb } = require('./db');
 const { reseed } = require('./reseed');
-const { ensureGroupStageComplete, syncFromApiFootball } = require('./syncAll');
+const { syncFromApiFootball } = require('./syncAll');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -64,9 +64,6 @@ async function start() {
   } else {
     console.log(`[startup] Database has ${matchCount} matches — skipping seed.`);
   }
-
-  // Always ensure all group stage matches are present (fixes partial worldcupapi.com reseeds)
-  ensureGroupStageComplete();
 
   // Kick off an api-football.com sync shortly after startup
   const apiKey = process.env.API_FOOTBALL_KEY;

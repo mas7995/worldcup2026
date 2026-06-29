@@ -99,6 +99,17 @@ export default function AdminPage() {
     }
   }
 
+  async function handleCleanupPhantom() {
+    if (!confirm('Remove fake group stage matches (seed placeholders with no real API data)?')) return;
+    try {
+      const res = await api.admin.cleanupPhantomMatches(pin);
+      setMsg(`Cleaned up ${res.deleted} phantom match${res.deleted !== 1 ? 'es' : ''}. ${res.message || ''}`);
+      loadAll();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
   async function handleReset() {
     if (!confirm('NUCLEAR RESET: delete all predictions & players?')) return;
     if (!confirm('Are you SURE? This cannot be undone!')) return;
@@ -145,6 +156,7 @@ export default function AdminPage() {
         <h2 className="text-xl font-black">⚙️ Admin</h2>
         <div className="flex gap-2">
           <button onClick={handleSyncAll} className="btn-secondary text-xs">🔄 Sync All</button>
+          <button onClick={handleCleanupPhantom} className="text-xs bg-orange-500/20 border border-orange-500/40 text-orange-300 px-3 py-1.5 rounded-xl hover:bg-orange-500/30 cursor-pointer">🧹 Fix Matches</button>
           <button onClick={handleReset} className="text-xs bg-red-500/20 border border-red-500/40 text-red-300 px-3 py-1.5 rounded-xl hover:bg-red-500/30 cursor-pointer">💀 Reset</button>
         </div>
       </div>
