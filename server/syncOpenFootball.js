@@ -116,11 +116,29 @@ async function syncKnockoutFromOpenFootball() {
       // Score / result
       let status, score_a, score_b, result;
       if (of.score && Array.isArray(of.score.ft)) {
-        // openfootball has a final score — authoritative, apply it
+        // openfootball has a final score — authoritative, apply it.
+        // Display the regulation (ft) score, but decide the winner using
+        // extra time (et) and penalties (p) when present — knockout games
+        // never end in a draw.
         score_a = of.score.ft[0];
         score_b = of.score.ft[1];
-        status = 'finished';
-        result = score_a > score_b ? 'team_a' : score_b > score_a ? 'team_b' : 'draw';
+        const decisive = of.score.p || of.score.et || of.score.ft;
+        const [a, b] = decisive;
+        if (a > b) result = 'team_a';
+        else if (b > a) result = 'team_b';
+        else result = 'draw'; // tied with no penalty data — shouldn't happen in a knockout
+        // A knockout must have a winner. If the data still shows a tie (no
+        // et/p recorded yet), don't finalize it — leave for manual entry.
+        if (result === 'draw') {
+          if (dbm.result) {
+            status = dbm.status; result = dbm.result;
+            score_a = dbm.score_a; score_b = dbm.score_b;
+          } else {
+            status = 'live'; result = null; score_a = null; score_b = null;
+          }
+        } else {
+          status = 'finished';
+        }
       } else if (dbm.result) {
         // No score from openfootball yet, but a result was already set
         // (e.g. entered manually in the admin panel) — preserve it, never clobber.

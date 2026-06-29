@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { flagEmoji, toCT, resultLabel } from '../lib/utils';
+import { flagEmoji, toCT, resultLabel, isKnockout } from '../lib/utils';
 import { api } from '../lib/api';
 import { usePlayer } from '../lib/PlayerContext';
 import Countdown from './Countdown';
@@ -124,13 +124,15 @@ export default function MatchCard({ match, prediction, onPredictionChange, teamR
           >
             {flagEmoji(match.team_a_code)} {match.team_a}
           </button>
-          <button
-            onClick={() => handlePredict('draw')}
-            disabled={isLocked || saving}
-            className={`prediction-btn ${prediction === 'draw' ? 'prediction-btn-active-draw' : 'prediction-btn-inactive'} ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            🤝 Draw
-          </button>
+          {!isKnockout(match.round) && (
+            <button
+              onClick={() => handlePredict('draw')}
+              disabled={isLocked || saving}
+              className={`prediction-btn ${prediction === 'draw' ? 'prediction-btn-active-draw' : 'prediction-btn-inactive'} ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              🤝 Draw
+            </button>
+          )}
           <button
             onClick={() => handlePredict('team_b')}
             disabled={isLocked || saving}

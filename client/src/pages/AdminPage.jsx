@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import { toCT, flagEmoji } from '../lib/utils';
+import { toCT, flagEmoji, isKnockout } from '../lib/utils';
 
 export default function AdminPage() {
   // Admin dashboard no longer requires a PIN — the empty string is fine since
@@ -210,11 +210,13 @@ export default function AdminPage() {
                       <span className="text-base">{flagEmoji(m.team_a_code)}</span>
                       <span>Win</span>
                     </button>
-                    <button onClick={() => setResultForm(f => ({ ...f, result: 'draw' }))}
-                      className={`flex-1 py-2 rounded-xl text-xs font-bold border cursor-pointer transition-all
-                        ${resultForm.result === 'draw' ? 'border-yellow-400 bg-yellow-500/20 text-yellow-200' : 'border-white/20 bg-white/5 text-white/60'}`}>
-                      Draw
-                    </button>
+                    {!isKnockout(m.round) && (
+                      <button onClick={() => setResultForm(f => ({ ...f, result: 'draw' }))}
+                        className={`flex-1 py-2 rounded-xl text-xs font-bold border cursor-pointer transition-all
+                          ${resultForm.result === 'draw' ? 'border-yellow-400 bg-yellow-500/20 text-yellow-200' : 'border-white/20 bg-white/5 text-white/60'}`}>
+                        Draw
+                      </button>
+                    )}
                     <button onClick={() => setResultForm(f => ({ ...f, result: 'team_b' }))}
                       className={`flex-1 py-2 rounded-xl text-xs font-bold border cursor-pointer transition-all flex flex-col items-center gap-0.5
                         ${resultForm.result === 'team_b' ? 'border-red-400 bg-red-500/20 text-red-200' : 'border-white/20 bg-white/5 text-white/60'}`}>
@@ -419,7 +421,7 @@ function PlayerRow({ player, adminPin, matches, onRemove, onMsg, onError, onPick
                 <div className="flex gap-1">
                   {[
                     { val: 'team_a', label: m.team_a, color: 'blue' },
-                    { val: 'draw',   label: 'Draw',   color: 'yellow' },
+                    ...(isKnockout(m.round) ? [] : [{ val: 'draw', label: 'Draw', color: 'yellow' }]),
                     { val: 'team_b', label: m.team_b, color: 'red' },
                   ].map(({ val, label, color }) => (
                     <button
