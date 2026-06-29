@@ -6,7 +6,8 @@ export default function NavBar({ activePage, onNavigate }) {
   const tabs = [
     { id: 'matches', label: '⚽ Matches' },
     { id: 'leaderboard', label: '🏆 Board' },
-    { id: 'mypicks', label: '📋 My Picks' },
+    { id: 'bracket', label: '📊 Bracket' },
+    { id: 'mypicks', label: '📋 Picks' },
   ];
 
   return (

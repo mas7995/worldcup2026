@@ -170,4 +170,9 @@ function seed() {
   console.log(`Seeded ${matches.length} matches.`);
 }
 
-seed();
+// Only auto-run when invoked directly (not via require)
+if (require.main === module) {
+  seed();
+}
+
+module.exports = { seed, SEED_MATCHES: matches };

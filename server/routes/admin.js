@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { getDb } = require('../db');
 const { updateScoresForMatch } = require('../scoring');
-const { syncMatchResults } = require('../apiSync');
+const { getRequestCount } = require('../apiSync');
+const { syncFromApiFootball, getApiFootballCallsToday } = require('../syncAll');
 
 const ADMIN_PIN = process.env.ADMIN_PIN || '2026';
 
@@ -37,10 +38,44 @@ router.post('/result', requirePin, (req, res) => {
   res.json({ ok: true, matchId, result });
 });
 
-// Trigger API sync
+// Clear a match result — resets back to upcoming
+router.post('/clear-result', requirePin, (req, res) => {
+  const { matchId } = req.body;
+  if (!matchId) return res.status(400).json({ error: 'matchId required' });
+
+  const db = getDb();
+  const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId);
+  if (!match) return res.status(404).json({ error: 'Match not found' });
+
+  db.prepare(`UPDATE matches SET result = NULL, score_a = NULL, score_b = NULL, status = 'upcoming' WHERE id = ?`).run(matchId);
+  db.prepare(`UPDATE predictions SET is_correct = NULL WHERE match_id = ?`).run(matchId);
+
+  res.json({ ok: true });
+});
+
+// Comprehensive sync from api-football.com (group stage results + knockout bracket)
+router.post('/sync-all', requirePin, async (req, res) => {
+  try {
+    const result = await syncFromApiFootball(process.env.API_FOOTBALL_KEY);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Keep /sync-knockout as alias
+router.post('/sync-knockout', requirePin, async (req, res) => {
+  try {
+    const result = await syncFromApiFootball(process.env.API_FOOTBALL_KEY);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Legacy worldcupapi.com sync (now inactive — kept for backward compat)
 router.post('/sync', requirePin, async (req, res) => {
-  const result = await syncMatchResults();
-  res.json(result);
+  res.json({ synced: 0, note: 'worldcupapi.com is no longer active. Use /admin/sync-all instead.' });
 });
 
 // Get full audit trail
@@ -57,6 +92,87 @@ router.get('/audit', requirePin, (req, res) => {
   res.json(audit);
 });
 
+// API usage stats
+router.get('/api-usage', requirePin, (req, res) => {
+  const db = getDb();
+  const total = getRequestCount();
+  const afToday = getApiFootballCallsToday();
+  const recent = db.prepare(
+    'SELECT endpoint, called_at, result FROM api_log ORDER BY called_at DESC LIMIT 50'
+  ).all();
+  res.json({
+    total,
+    budget: 1500,
+    remaining: 1500 - total,
+    apiFootball: { today: afToday, dailyLimit: 90, remaining: 90 - afToday },
+    recent,
+  });
+});
+
+// Create a player (admin bypass — no cap, no self-registration flow)
+router.post('/players', requirePin, (req, res) => {
+  const { name, pin: playerPin } = req.body;
+  if (!name || !String(name).trim()) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+  const trimmed = String(name).trim();
+  if (!/^\d{4}$/.test(String(playerPin || ''))) {
+    return res.status(400).json({ error: 'PIN must be exactly 4 digits' });
+  }
+  const db = getDb();
+  const existing = db.prepare('SELECT id FROM players WHERE LOWER(name) = LOWER(?)').get(trimmed);
+  if (existing) return res.status(400).json({ error: 'Name already taken' });
+  const result = db.prepare('INSERT INTO players (name, pin) VALUES (?, ?)').run(trimmed, String(playerPin));
+  const player = db.prepare('SELECT id, name, created_at FROM players WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json(player);
+});
+
+// Set a prediction on behalf of a player (admin override — ignores kickoff lock)
+router.post('/predictions', requirePin, (req, res) => {
+  const { playerId, matchId, prediction } = req.body;
+  if (!playerId || !matchId || !prediction) {
+    return res.status(400).json({ error: 'playerId, matchId, and prediction are required' });
+  }
+  if (!['team_a', 'draw', 'team_b'].includes(prediction)) {
+    return res.status(400).json({ error: 'Invalid prediction' });
+  }
+  const db = getDb();
+  if (!db.prepare('SELECT id FROM players WHERE id = ?').get(playerId)) {
+    return res.status(404).json({ error: 'Player not found' });
+  }
+  if (!db.prepare('SELECT id FROM matches WHERE id = ?').get(matchId)) {
+    return res.status(404).json({ error: 'Match not found' });
+  }
+  const now = new Date().toISOString();
+  db.transaction(() => {
+    const existing = db.prepare('SELECT id FROM predictions WHERE player_id = ? AND match_id = ?').get(playerId, matchId);
+    if (existing) {
+      db.prepare('UPDATE predictions SET prediction = ?, updated_at = ?, is_correct = NULL WHERE id = ?').run(prediction, now, existing.id);
+    } else {
+      db.prepare('INSERT INTO predictions (player_id, match_id, prediction, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(playerId, matchId, prediction, now, now);
+    }
+    db.prepare('INSERT INTO prediction_audit (player_id, match_id, prediction, recorded_at) VALUES (?, ?, ?, ?)').run(playerId, matchId, prediction, now);
+  })();
+  // If match is already finished, score this prediction immediately
+  const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId);
+  if (match.status === 'finished' && match.result) {
+    updateScoresForMatch(matchId);
+  }
+  res.json({ ok: true });
+});
+
+router.patch('/players/:id/pin', requirePin, (req, res) => {
+  const { newPin } = req.body;
+  if (!newPin || !/^\d{4}$/.test(String(newPin))) {
+    return res.status(400).json({ error: 'New PIN must be exactly 4 digits' });
+  }
+  const db = getDb();
+  const player = db.prepare('SELECT * FROM players WHERE id = ?').get(req.params.id);
+  if (!player) return res.status(404).json({ error: 'Player not found' });
+  db.prepare('UPDATE players SET pin = ? WHERE id = ?').run(String(newPin), req.params.id);
+  res.json({ ok: true });
+});
+
 // Remove a player
 router.delete('/players/:id', requirePin, (req, res) => {
   const db = getDb();
@@ -71,6 +187,33 @@ router.delete('/players/:id', requirePin, (req, res) => {
   })();
 
   res.json({ ok: true });
+});
+
+// Delete phantom group stage matches (those with external_id IS NULL — inserted from seed placeholder data)
+// Safe to run: only removes matches that worldcupapi.com never confirmed, preserving real data
+router.post('/cleanup-phantom-matches', requirePin, (req, res) => {
+  const db = getDb();
+
+  // Find group stage matches with no external_id (these are seed.js placeholders, not real API data)
+  const phantoms = db.prepare(
+    "SELECT id FROM matches WHERE round LIKE 'Group %' AND (external_id IS NULL OR external_id = 'null')"
+  ).all();
+
+  if (phantoms.length === 0) {
+    return res.json({ deleted: 0, message: 'No phantom matches found' });
+  }
+
+  const ids = phantoms.map(m => m.id);
+  const placeholders = ids.map(() => '?').join(',');
+
+  db.transaction(() => {
+    db.prepare(`DELETE FROM prediction_audit WHERE match_id IN (${placeholders})`).run(...ids);
+    db.prepare(`DELETE FROM reactions WHERE match_id IN (${placeholders})`).run(...ids);
+    db.prepare(`DELETE FROM predictions WHERE match_id IN (${placeholders})`).run(...ids);
+    db.prepare(`DELETE FROM matches WHERE id IN (${placeholders})`).run(...ids);
+  })();
+
+  res.json({ deleted: phantoms.length });
 });
 
 // Reset game (nuclear)

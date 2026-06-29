@@ -1,4 +1,4 @@
-# ⚽ Sierra Family World Cup 2026 Prediction Game
+# ⚽ World Cup 2026 Prediction Game
 
 A family prediction game for the 2026 FIFA Men's World Cup. Pick match outcomes before kickoff, rack up points, and win the pot.
 
