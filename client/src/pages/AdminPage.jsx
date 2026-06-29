@@ -78,13 +78,9 @@ export default function AdminPage() {
     setMsg('');
     setError('');
     try {
-      setMsg('Syncing from api-football.com…');
+      setMsg('Syncing bracket…');
       const res = await api.admin.syncAll(pin);
-      if (res.skipped) {
-        setMsg(`Sync skipped — daily limit reached (${res.callsToday} calls today)`);
-      } else {
-        setMsg(`Synced — ${res.groupUpdated} group stage + ${res.knockoutUpdated} knockout matches updated (call ${res.callsToday}/${res.dailyLimit} today)`);
-      }
+      setMsg(`Bracket synced — ${res.updated} knockout matches updated`);
       loadAll();
     } catch (e) {
       setError(e.message);
@@ -158,7 +154,7 @@ export default function AdminPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-black">⚙️ Admin</h2>
         <div className="flex gap-2">
-          <button onClick={handleSyncAll} className="btn-secondary text-xs">🔄 Sync All</button>
+          <button onClick={handleSyncAll} className="btn-secondary text-xs">🔄 Sync Bracket</button>
           <button onClick={handleCleanupPhantom} className="text-xs bg-orange-500/20 border border-orange-500/40 text-orange-300 px-3 py-1.5 rounded-xl hover:bg-orange-500/30 cursor-pointer">🧹 Fix Matches</button>
           <button onClick={handleReset} className="text-xs bg-red-500/20 border border-red-500/40 text-red-300 px-3 py-1.5 rounded-xl hover:bg-red-500/30 cursor-pointer">💀 Reset</button>
         </div>
@@ -316,13 +312,13 @@ export default function AdminPage() {
 
       {tab === 'api' && (
         <div className="space-y-4">
-          {/* System diagnostics — is the API wired up? */}
+          {/* System diagnostics — schedule + data source state */}
           {diag && (
             <div className="card space-y-2">
               <h3 className="text-sm font-bold text-white/60 uppercase tracking-wider">System Status</h3>
-              <div className={`flex items-center gap-2 text-sm font-bold ${diag.apiFootballKeySet ? 'text-green-400' : 'text-red-400'}`}>
-                <span>{diag.apiFootballKeySet ? '✅' : '❌'}</span>
-                <span>API key {diag.apiFootballKeySet ? 'is connected' : 'NOT set — add API_FOOTBALL_KEY in Railway'}</span>
+              <div className="flex items-center gap-2 text-sm font-bold text-green-400">
+                <span>✅</span>
+                <span>Data source: openfootball (free, no key)</span>
               </div>
               <div className="text-xs text-white/60">
                 Round of 32: <span className={diag.roundOf32.stillTBD > 0 ? 'text-yellow-400' : 'text-green-400'}>
@@ -331,63 +327,31 @@ export default function AdminPage() {
               </div>
               {diag.nextUpcoming && (
                 <div className="text-xs text-white/60">
-                  Next game in DB: <span className="text-white">{diag.nextUpcoming.team_a} vs {diag.nextUpcoming.team_b}</span>
+                  Next game: <span className="text-white">{diag.nextUpcoming.team_a} vs {diag.nextUpcoming.team_b}</span>
                   {' '}({toCT(diag.nextUpcoming.kickoff_time)} CT)
                 </div>
               )}
-              {!diag.apiFootballKeySet && (
-                <p className="text-xs text-white/40 pt-1">
-                  Once you add the key in Railway and redeploy, click <b>Sync All</b> above to pull the real bracket.
-                </p>
-              )}
+              <p className="text-xs text-white/40 pt-1">
+                Auto-syncs the knockout bracket every 15 min. Click <b>Sync Bracket</b> above to refresh now.
+              </p>
             </div>
           )}
           {apiUsage ? (
-            <>
-              {/* api-football.com — primary sync */}
-              {apiUsage.apiFootball && (
-                <div className="card space-y-3">
-                  <h3 className="text-sm font-bold text-white/60 uppercase tracking-wider">api-football.com (auto-sync)</h3>
-                  <div className="flex gap-3">
-                    <div className="flex-1 bg-white/5 rounded-xl p-3 text-center">
-                      <div className="text-2xl font-black text-white">{apiUsage.apiFootball.today}</div>
-                      <div className="text-xs text-white/40">today</div>
-                    </div>
-                    <div className="flex-1 bg-white/5 rounded-xl p-3 text-center">
-                      <div className={`text-2xl font-black ${apiUsage.apiFootball.remaining < 10 ? 'text-red-400' : apiUsage.apiFootball.remaining < 30 ? 'text-yellow-400' : 'text-green-400'}`}>
-                        {apiUsage.apiFootball.remaining}
-                      </div>
-                      <div className="text-xs text-white/40">remaining</div>
-                    </div>
-                    <div className="flex-1 bg-white/5 rounded-xl p-3 text-center">
-                      <div className="text-2xl font-black text-white/60">{apiUsage.apiFootball.dailyLimit}</div>
-                      <div className="text-xs text-white/40">daily limit</div>
-                    </div>
-                  </div>
-                  <div className="w-full bg-white/10 rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full transition-all ${apiUsage.apiFootball.remaining < 10 ? 'bg-red-400' : apiUsage.apiFootball.remaining < 30 ? 'bg-yellow-400' : 'bg-green-400'}`}
-                      style={{ width: `${Math.min(100, (apiUsage.apiFootball.today / apiUsage.apiFootball.dailyLimit) * 100)}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-white/30">Auto-syncs every 20 min. Resets daily at midnight UTC.</p>
-                </div>
+            <div className="card space-y-1">
+              <h4 className="text-xs font-bold text-white/40 uppercase mb-2">Recent sync activity</h4>
+              {apiUsage.recent.length === 0 && (
+                <div className="text-xs text-white/30 py-2">No sync activity logged yet.</div>
               )}
-
-              {/* Recent API log */}
-              <div className="card space-y-1">
-                <h4 className="text-xs font-bold text-white/40 uppercase mb-2">Recent calls</h4>
-                {apiUsage.recent.map((r, i) => (
-                  <div key={i} className="text-xs flex gap-2 py-0.5 border-b border-white/5">
-                    <span className="text-white/40 w-28 flex-shrink-0">
-                      {new Date(r.called_at + 'Z').toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                    </span>
-                    <span className="text-white/70 flex-1">{r.endpoint}</span>
-                    <span className={r.result === 'ok' ? 'text-green-400' : 'text-red-400'}>{r.result}</span>
-                  </div>
-                ))}
-              </div>
-            </>
+              {apiUsage.recent.map((r, i) => (
+                <div key={i} className="text-xs flex gap-2 py-0.5 border-b border-white/5">
+                  <span className="text-white/40 w-28 flex-shrink-0">
+                    {new Date(r.called_at + 'Z').toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  </span>
+                  <span className="text-white/70 flex-1">{r.endpoint}</span>
+                  <span className={r.result === 'ok' ? 'text-green-400' : 'text-red-400'}>{r.result}</span>
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="card text-white/40 text-sm text-center py-4">Loading...</div>
           )}
