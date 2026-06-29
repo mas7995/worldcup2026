@@ -4,13 +4,9 @@ const { getDb } = require('../db');
 const { updateScoresForMatch } = require('../scoring');
 const { syncKnockoutFromOpenFootball } = require('../syncOpenFootball');
 
-const ADMIN_PIN = process.env.ADMIN_PIN || '2026';
-
+// Admin dashboard PIN gate removed — admin routes are open.
+// (Kept as a pass-through so existing route definitions don't need changing.)
 function requirePin(req, res, next) {
-  const pin = req.headers['x-admin-pin'] || req.body?.pin;
-  if (pin !== ADMIN_PIN) {
-    return res.status(401).json({ error: 'Invalid PIN' });
-  }
   next();
 }
 

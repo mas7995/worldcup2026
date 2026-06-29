@@ -3,8 +3,9 @@ import { api } from '../lib/api';
 import { toCT, flagEmoji } from '../lib/utils';
 
 export default function AdminPage() {
-  const [pin, setPin] = useState('');
-  const [authed, setAuthed] = useState(false);
+  // Admin dashboard no longer requires a PIN — the empty string is fine since
+  // the backend no longer enforces it.
+  const pin = '';
   const [matches, setMatches] = useState([]);
   const [audit, setAudit] = useState([]);
   const [players, setPlayers] = useState([]);
@@ -16,16 +17,9 @@ export default function AdminPage() {
   const [apiUsage, setApiUsage] = useState(null);
   const [diag, setDiag] = useState(null);
 
-  async function handlePinSubmit(e) {
-    e.preventDefault();
-    try {
-      await api.admin.getMatches(pin);
-      setAuthed(true);
-      loadAll();
-    } catch {
-      setError('Wrong PIN');
-    }
-  }
+  useEffect(() => {
+    loadAll();
+  }, []);
 
   async function loadAll() {
     try {
@@ -119,27 +113,6 @@ export default function AdminPage() {
     } catch (e) {
       setError(e.message);
     }
-  }
-
-  if (!authed) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="card w-full max-w-sm space-y-4">
-          <h2 className="text-xl font-black text-center">⚙️ Admin Panel</h2>
-          <form onSubmit={handlePinSubmit} className="flex gap-2">
-            <input
-              type="password"
-              value={pin}
-              onChange={e => setPin(e.target.value)}
-              placeholder="PIN"
-              className="flex-1 bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white placeholder-white/30 outline-none focus:border-purple-400"
-            />
-            <button type="submit" className="btn-primary">Enter</button>
-          </form>
-          {error && <div className="text-red-400 text-sm text-center">{error}</div>}
-        </div>
-      </div>
-    );
   }
 
   const tabs = [
