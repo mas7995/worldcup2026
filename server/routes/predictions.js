@@ -3,6 +3,7 @@ const router = express.Router();
 const { getDb } = require('../db');
 
 const VALID_PREDICTIONS = ['team_a', 'draw', 'team_b'];
+const KNOCKOUT_ROUNDS = ['Round of 32', 'Round of 16', 'Quarterfinals', 'Semifinals', 'Third Place', 'Final'];
 
 router.get('/:playerId', (req, res) => {
   const db = getDb();
@@ -37,6 +38,15 @@ router.post('/', (req, res) => {
 
   const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId);
   if (!match) return res.status(404).json({ error: 'Match not found' });
+
+  // Can't pick a knockout slot whose teams aren't decided yet
+  if (match.team_a_code === 'TBD' || match.team_b_code === 'TBD') {
+    return res.status(400).json({ error: 'Teams for this match are not decided yet' });
+  }
+  // Knockout games can't end in a draw
+  if (prediction === 'draw' && KNOCKOUT_ROUNDS.includes(match.round)) {
+    return res.status(400).json({ error: 'Knockout games cannot be a draw — pick a team' });
+  }
 
   // Check lock: predictions locked once match kicks off
   const now = new Date();

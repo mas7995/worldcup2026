@@ -29,6 +29,9 @@ export default function MatchCard({ match, prediction, onPredictionChange, teamR
   const isLocked = new Date() >= new Date(match.kickoff_time);
   const isFinished = match.status === 'finished';
   const isLive = match.status === 'live';
+  // A knockout slot isn't pickable until both feeding games finish and the
+  // real teams are filled in (unresolved slots carry a 'TBD' code).
+  const teamsKnown = match.team_a_code !== 'TBD' && match.team_b_code !== 'TBD';
 
   async function handlePredict(value) {
     if (!player || isLocked) return;
@@ -114,8 +117,15 @@ export default function MatchCard({ match, prediction, onPredictionChange, teamR
         </div>
       </div>
 
+      {/* Teams not yet decided — knockout slot still pending */}
+      {player && !isFinished && !teamsKnown && (
+        <div className="text-center text-white/40 text-xs mt-3 py-2 border border-white/10 rounded-lg">
+          ⏳ Teams to be decided — pick opens once both spots are filled
+        </div>
+      )}
+
       {/* Prediction buttons */}
-      {player && !isFinished && (
+      {player && !isFinished && teamsKnown && (
         <div className="flex gap-2 mt-3">
           <button
             onClick={() => handlePredict('team_a')}
