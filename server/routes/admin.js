@@ -3,6 +3,7 @@ const router = express.Router();
 const { getDb } = require('../db');
 const { updateScoresForMatch } = require('../scoring');
 const { syncMatchResults, syncByDate, getRequestCount } = require('../apiSync');
+const { syncKnockoutBracket } = require('../syncKnockout');
 
 const ADMIN_PIN = process.env.ADMIN_PIN || '2026';
 
@@ -47,16 +48,25 @@ router.post('/clear-result', requirePin, (req, res) => {
   if (!match) return res.status(404).json({ error: 'Match not found' });
 
   db.prepare(`UPDATE matches SET result = NULL, score_a = NULL, score_b = NULL, status = 'upcoming' WHERE id = ?`).run(matchId);
-  // Reset is_correct to NULL for all predictions on this match
   db.prepare(`UPDATE predictions SET is_correct = NULL WHERE match_id = ?`).run(matchId);
 
   res.json({ ok: true });
 });
 
-// Trigger API sync
+// Trigger live score sync
 router.post('/sync', requirePin, async (req, res) => {
   const result = await syncMatchResults();
   res.json(result);
+});
+
+// Sync knockout bracket from api-football.com
+router.post('/sync-knockout', requirePin, async (req, res) => {
+  try {
+    const result = await syncKnockoutBracket(process.env.API_FOOTBALL_KEY);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Get full audit trail

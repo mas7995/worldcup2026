@@ -47,6 +47,8 @@ export const api = {
       request('/admin/sync', { method: 'POST', headers: { 'x-admin-pin': pin } }),
     clearResult: (pin, matchId) =>
       request('/admin/clear-result', { method: 'POST', headers: { 'x-admin-pin': pin }, body: { matchId } }),
+    syncKnockout: (pin) =>
+      request('/admin/sync-knockout', { method: 'POST', headers: { 'x-admin-pin': pin } }),
     getAudit: (pin) =>
       request('/admin/audit', { headers: { 'x-admin-pin': pin } }),
     removePlayer: (pin, id) =>

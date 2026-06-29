@@ -81,6 +81,19 @@ export default function AdminPage() {
     }
   }
 
+  async function handleSyncKnockout() {
+    setMsg('');
+    setError('');
+    try {
+      setMsg('Syncing knockout bracket…');
+      const res = await api.admin.syncKnockout(pin);
+      setMsg(`Knockout synced — ${res.updated} matches updated from api-football.com`);
+      loadAll();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
   async function handleRemovePlayer(id, name) {
     if (!confirm(`Remove ${name}?`)) return;
     try {
@@ -137,7 +150,8 @@ export default function AdminPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-black">⚙️ Admin</h2>
         <div className="flex gap-2">
-          <button onClick={handleSync} className="btn-secondary text-xs">🔄 Sync API</button>
+          <button onClick={handleSyncKnockout} className="btn-secondary text-xs">🏆 Sync Knockout</button>
+          <button onClick={handleSync} className="btn-secondary text-xs">🔄 Sync</button>
           <button onClick={handleReset} className="text-xs bg-red-500/20 border border-red-500/40 text-red-300 px-3 py-1.5 rounded-xl hover:bg-red-500/30 cursor-pointer">💀 Reset</button>
         </div>
       </div>
